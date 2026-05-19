@@ -53,6 +53,57 @@ html {
   font-size: 0.875rem;
 }
 
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.auth-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--secondary-color-4);
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-aux {
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--secondary-color-5);
+  margin: 0;
+}
+
+.auth-aux a {
+  color: var(--secondary-color-3);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.auth-success {
+  font-size: 0.875rem;
+  color: var(--secondary-color-3);
+}
+
+.auth-error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--light, #fca5a5) var(--dark, #7f1d1d);
+  border-radius: 0.5rem;
+  background-color: var(--light, #fee2e2) var(--dark, rgba(127, 29, 29, 0.25));
+  color: var(--light, #7f1d1d) var(--dark, #fecaca);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
 .profile-card-meta a {
   color: inherit;
   text-decoration: underline;

@@ -333,6 +333,108 @@ pub(crate) async fn create_password_user(
     Ok(user_id)
 }
 
+/// Issue a one-hour password reset token for the account with the given email.
+///
+/// Returns `Some(token)` when the account exists and has a password set.
+/// Returns `None` when no such account exists — the server fn deliberately
+/// surfaces the same "we sent it if the address was valid" response in both
+/// cases to avoid revealing which emails are registered.
+pub(crate) async fn request_password_reset(
+    db: &SqlitePool,
+    email: &str,
+) -> anyhow::Result<Option<String>> {
+    use argon2::password_hash::rand_core::{OsRng, RngCore};
+
+    let user: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM users \
+         WHERE LOWER(email) = LOWER(?) AND password_hash IS NOT NULL \
+         LIMIT 1",
+    )
+    .bind(email.trim())
+    .fetch_optional(db)
+    .await?;
+
+    let Some((user_id,)) = user else {
+        return Ok(None);
+    };
+
+    let mut bytes = [0u8; 32];
+    let mut rng = OsRng;
+    rng.fill_bytes(&mut bytes);
+    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+
+    let expires_at = unix_now() + 3600;
+
+    sqlx::query(
+        "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)",
+    )
+    .bind(&token)
+    .bind(user_id)
+    .bind(expires_at)
+    .execute(db)
+    .await?;
+
+    Ok(Some(token))
+}
+
+/// Consume a reset token: validate, hash the new password, set it, and delete
+/// all outstanding tokens for the same user (so a leaked older token can't be
+/// re-used after a successful reset).
+pub(crate) async fn consume_password_reset(
+    db: &SqlitePool,
+    token: &str,
+    new_password: &str,
+) -> anyhow::Result<()> {
+    if new_password.len() < 8 {
+        anyhow::bail!("Password must be at least 8 characters.");
+    }
+
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT user_id FROM password_reset_tokens WHERE token = ? AND expires_at > ? LIMIT 1",
+    )
+    .bind(token)
+    .bind(unix_now())
+    .fetch_optional(db)
+    .await?;
+
+    let Some((user_id,)) = row else {
+        anyhow::bail!("This reset link has expired or already been used.");
+    };
+
+    let hash = hash_password(new_password)?;
+
+    let mut tx = db.begin().await?;
+    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+        .bind(&hash)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM password_reset_tokens WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    Ok(())
+}
+
+fn hash_password(plaintext: &str) -> anyhow::Result<String> {
+    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
+    use argon2::Argon2;
+    let salt = SaltString::generate(&mut OsRng);
+    Ok(Argon2::default()
+        .hash_password(plaintext.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("hashing failed: {e}"))?
+        .to_string())
+}
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
 /// Verify an email/password pair.
 ///
 /// `Ok(Some(id))` on success, `Ok(None)` on any failure (no such user, wrong

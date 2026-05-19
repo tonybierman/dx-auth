@@ -47,7 +47,7 @@ To set up a GitHub OAuth App for local development:
 3. Authorization callback URL: `http://localhost:8080/auth/github/callback`.
 4. Copy the Client ID; generate a Client Secret.
 
-### Outbound email (Phase 5+)
+### Outbound email setup
 
 When `SMTP_HOST` is set, lettre opens a STARTTLS submission connection.
 When it's unset, the dev fallback writes RFC-822 `.eml` files into
@@ -63,13 +63,6 @@ testable without a provider.
 | `FROM_EMAIL` | `noreply@localhost` | Address used in the `From:` header. |
 | `PUBLIC_BASE_URL` | `http://localhost:8080` | Used to build absolute links inside email bodies (verification, password reset). |
 
-### Server-rendering
-
-| Var | Default | Notes |
-| --- | --- | --- |
-| `IP` | `127.0.0.1` | Wired by `dx serve` — bind address. |
-| `PORT` | `8080` | Wired by `dx serve` — port. |
-
 ## Development tips
 
 - `sqlite3 auth/auth.db '.schema'` shows the live schema.
@@ -79,21 +72,3 @@ testable without a provider.
 - The dev email backend logs each delivery with a path like
   `[mail] wrote ./emails/1747700000000.eml` — open the file in any email
   client to inspect rendering.
-
-## Project layout
-
-```
-auth/
-├── Cargo.toml
-├── migrations/                 # sqlx migrations, embedded at compile time
-├── assets/
-│   ├── dx-components-theme.css # catalog theme
-│   └── app.css                 # app-level layout + dark-theme override
-└── src/
-    ├── main.rs                 # router, server fns, app() UI
-    ├── auth.rs                 # User type, OAuth helpers, password helpers
-    ├── mail.rs                 # Mailer + email templates
-    └── components/
-        ├── login_panel/        # reusable email/password + provider login card
-        └── …                   # `dx components add`-installed catalog widgets
-```

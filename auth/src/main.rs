@@ -131,7 +131,37 @@ fn main() {
     });
 }
 
+#[derive(Routable, Clone, PartialEq)]
+enum Route {
+    #[route("/")]
+    Home,
+    #[route("/auth/forgot")]
+    ForgotPassword,
+    #[route("/auth/reset?:token")]
+    ResetPassword { token: String },
+}
+
 fn app() -> Element {
+    rsx! {
+        document::Stylesheet { href: THEME_CSS }
+        document::Stylesheet { href: APP_CSS }
+
+        // Pre-mount the catalog widgets that only appear inside LoginPanel so
+        // their css_module assets are registered during the initial render.
+        // Without this, a logged-in user signing out triggers a client-side
+        // mount whose OnceLock + queue_effect link-insertion path can race
+        // against the paint and leave the form unstyled until refresh.
+        div { style: "display: none", aria_hidden: "true",
+            Input {}
+            Label { html_for: "__preload" }
+        }
+
+        Router::<Route> {}
+    }
+}
+
+#[component]
+fn Home() -> Element {
     let mut profile = use_resource(get_current_user_profile);
     let mut permissions = use_action(get_permissions);
     let mut logout = use_action(logout);
@@ -169,19 +199,6 @@ fn app() -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: THEME_CSS }
-        document::Stylesheet { href: APP_CSS }
-
-        // Pre-mount the catalog widgets that only appear inside LoginPanel so their
-        // css_module assets are registered during the initial render. Without this,
-        // a logged-in user signing out triggers a client-side mount whose
-        // OnceLock + queue_effect link-insertion path can race against the paint
-        // and leave the form unstyled until refresh.
-        div { style: "display: none", aria_hidden: "true",
-            Input {}
-            Label { html_for: "__preload" }
-        }
-
         main { class: "app-shell",
             if logged_in {
                 ProfileCard { profile: current }
@@ -212,12 +229,163 @@ fn app() -> Element {
                     providers: providers.clone(),
                     title: "Welcome back",
                     description: "Sign in to your workspace.",
-                    forgot_href: "#",
+                    forgot_href: "/auth/forgot",
                     error: {
                         let e = auth_error();
                         if e.is_empty() { None } else { Some(e) }
                     },
                     on_submit: on_login_submit,
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ForgotPassword() -> Element {
+    let mut email = use_signal(String::new);
+    let mut sent = use_signal(|| false);
+    let mut sending = use_signal(|| false);
+
+    rsx! {
+        main { class: "app-shell",
+            Card { class: "login-panel",
+                CardHeader {
+                    CardTitle { "Reset your password" }
+                    CardDescription { "We'll email you a link to choose a new one." }
+                }
+                CardContent {
+                    if sent() {
+                        p { class: "auth-success",
+                            "If an account exists for that address, a reset link is on its way."
+                        }
+                        p {
+                            a { href: "/", "Back to sign in" }
+                        }
+                    } else {
+                        form {
+                            class: "auth-form",
+                            onsubmit: move |evt| {
+                                evt.prevent_default();
+                                let email_val = email.read().clone();
+                                if email_val.trim().is_empty() {
+                                    return;
+                                }
+                                sending.set(true);
+                                spawn(async move {
+                                    let _ = request_password_reset_email(email_val).await;
+                                    sending.set(false);
+                                    sent.set(true);
+                                });
+                            },
+                            div { class: "auth-field",
+                                Label { html_for: "forgot-email", class: "auth-label", "Email" }
+                                Input {
+                                    id: "forgot-email",
+                                    r#type: "email",
+                                    autocomplete: "email",
+                                    placeholder: "you@example.com",
+                                    value: "{email}",
+                                    oninput: move |evt: FormEvent| email.set(evt.value()),
+                                }
+                            }
+                            Button {
+                                variant: ButtonVariant::Primary,
+                                r#type: "submit",
+                                class: "auth-submit",
+                                if sending() { "Sending…" } else { "Send reset link" }
+                            }
+                            p { class: "auth-aux",
+                                a { href: "/", "Back to sign in" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ResetPassword(token: String) -> Element {
+    let mut password = use_signal(String::new);
+    let mut confirm = use_signal(String::new);
+    let mut done = use_signal(|| false);
+    let mut error = use_signal(String::new);
+    let mut submitting = use_signal(|| false);
+
+    let token_for_submit = token.clone();
+
+    rsx! {
+        main { class: "app-shell",
+            Card { class: "login-panel",
+                CardHeader {
+                    CardTitle { "Set a new password" }
+                    CardDescription { "Choose a password of at least 8 characters." }
+                }
+                CardContent {
+                    if done() {
+                        p { class: "auth-success", "Password updated." }
+                        p { a { href: "/", "Sign in with your new password" } }
+                    } else {
+                        form {
+                            class: "auth-form",
+                            onsubmit: move |evt| {
+                                evt.prevent_default();
+                                error.set(String::new());
+
+                                let new_pw = password.read().clone();
+                                if new_pw != confirm.read().clone() {
+                                    error.set("Passwords don't match.".to_string());
+                                    return;
+                                }
+
+                                let token = token_for_submit.clone();
+                                submitting.set(true);
+                                spawn(async move {
+                                    match reset_password(token, new_pw).await {
+                                        Ok(()) => done.set(true),
+                                        Err(e) => error.set(friendly_server_error(e)),
+                                    }
+                                    submitting.set(false);
+                                });
+                            },
+                            div { class: "auth-field",
+                                Label { html_for: "reset-password", class: "auth-label", "New password" }
+                                Input {
+                                    id: "reset-password",
+                                    r#type: "password",
+                                    autocomplete: "new-password",
+                                    placeholder: "••••••••",
+                                    value: "{password}",
+                                    oninput: move |evt: FormEvent| password.set(evt.value()),
+                                }
+                            }
+                            div { class: "auth-field",
+                                Label { html_for: "reset-password-confirm", class: "auth-label", "Confirm password" }
+                                Input {
+                                    id: "reset-password-confirm",
+                                    r#type: "password",
+                                    autocomplete: "new-password",
+                                    placeholder: "••••••••",
+                                    value: "{confirm}",
+                                    oninput: move |evt: FormEvent| confirm.set(evt.value()),
+                                }
+                            }
+                            if !error().is_empty() {
+                                div { class: "auth-error", role: "alert", "{error}" }
+                            }
+                            Button {
+                                variant: ButtonVariant::Primary,
+                                r#type: "submit",
+                                class: "auth-submit",
+                                if submitting() { "Updating…" } else { "Reset password" }
+                            }
+                            p { class: "auth-aux",
+                                a { href: "/", "Back to sign in" }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -327,6 +495,29 @@ type DbExtension = axum::Extension<sqlx::SqlitePool>;
 
 #[cfg(feature = "server")]
 type MailExtension = axum::Extension<crate::mail::Mailer>;
+
+/// Kick off the password reset flow. Always returns Ok regardless of whether
+/// the email is registered, so the response can't be used to enumerate users.
+/// When the address is valid, an email with a reset link is sent via the
+/// configured Mailer backend (SMTP or the dev `./emails/*.eml` fallback).
+#[post("/api/user/request-password-reset", db: DbExtension, mail: MailExtension)]
+pub async fn request_password_reset_email(email: String) -> Result<()> {
+    if let Some(token) = auth::request_password_reset(&db.0, &email).await? {
+        let link = format!("{}/auth/reset?token={token}", mail.0.base_url());
+        let (subject, text, html) = crate::mail::templates::password_reset(&link);
+        if let Err(err) = mail.0.send(&email, &subject, &text, html.as_deref()).await {
+            eprintln!("[mail] WARN: failed to send password reset email: {err}");
+        }
+    }
+    Ok(())
+}
+
+/// Complete the password reset using the token from the email link.
+#[post("/api/user/reset-password", db: DbExtension)]
+pub async fn reset_password(token: String, new_password: String) -> Result<()> {
+    auth::consume_password_reset(&db.0, &token, &new_password).await?;
+    Ok(())
+}
 
 /// Create a new email/password account and log it in.
 #[post("/api/user/register-password", auth: auth::Session, db: DbExtension)]
