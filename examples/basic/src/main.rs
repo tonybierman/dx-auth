@@ -71,6 +71,12 @@ enum Route {
     VerifyEmail { token: String },
     #[route("/account/mfa")]
     MfaSetup,
+    #[route("/account/settings")]
+    AccountSettingsPage,
+    #[route("/admin/users")]
+    AdminUsersPage,
+    #[route("/admin/users/:user_id")]
+    AdminUserPage { user_id: i64 },
 }
 
 fn app() -> Element {
@@ -145,7 +151,9 @@ fn Home() -> Element {
                         },
                         "Sign out"
                     }
+                    a { class: "app-link", href: "/account/settings", "Account" }
                     a { class: "app-link", href: "/account/mfa", "Two-factor auth" }
+                    a { class: "app-link", href: "/admin/users", "Admin" }
                     Button {
                         variant: ButtonVariant::Outline,
                         onclick: move |_| async move {
@@ -847,4 +855,44 @@ pub async fn get_permissions() -> Result<HashSet<String>> {
         .or_unauthorized("You do not have permission to view categories")?;
 
     Ok(user.permissions)
+}
+
+#[component]
+fn AccountSettingsPage() -> Element {
+    rsx! {
+        main { class: "app-shell",
+            dx_auth::ui::AccountSettings { mfa_setup_href: "/account/mfa" }
+            p { class: "auth-aux", a { href: "/", "← Back to home" } }
+        }
+    }
+}
+
+#[component]
+fn AdminUsersPage() -> Element {
+    let nav = navigator();
+    rsx! {
+        main { class: "app-shell",
+            dx_auth::ui::AdminUserList {
+                on_select: move |id: i64| {
+                    nav.push(Route::AdminUserPage { user_id: id });
+                },
+            }
+            p { class: "auth-aux", a { href: "/", "← Back to home" } }
+        }
+    }
+}
+
+#[component]
+fn AdminUserPage(user_id: i64) -> Element {
+    let nav = navigator();
+    rsx! {
+        main { class: "app-shell",
+            dx_auth::ui::AdminUserDetail {
+                user_id,
+                on_back: move |_| {
+                    nav.push(Route::AdminUsersPage);
+                },
+            }
+        }
+    }
 }

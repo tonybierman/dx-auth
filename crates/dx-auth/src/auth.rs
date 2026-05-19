@@ -275,6 +275,7 @@ pub async fn upsert_github_user(
     .await?;
 
     assign_default_role(db, user_id).await?;
+    maybe_bootstrap_admin(db, user_id, profile.email).await?;
 
     Ok(user_id)
 }
@@ -287,6 +288,29 @@ pub mod role {
     pub const MEMBER: i64 = 2;
     /// Anonymous / not signed in.
     pub const GUEST: i64 = 3;
+}
+
+/// Bootstrap-admin hook called after every successful new-user insert
+/// (password + OAuth). Grants the `admin` role to a user whose email
+/// matches `DX_AUTH_BOOTSTRAP_ADMIN_EMAIL` (or the alias
+/// `BOOTSTRAP_ADMIN_EMAIL`) — handy for the first time you stand up an
+/// app and need someone to be able to reach `/admin/users`.
+pub async fn maybe_bootstrap_admin(
+    db: &Pool,
+    user_id: i64,
+    email: Option<&str>,
+) -> anyhow::Result<()> {
+    let Some(email) = email else { return Ok(()) };
+    let target = std::env::var("DX_AUTH_BOOTSTRAP_ADMIN_EMAIL")
+        .or_else(|_| std::env::var("BOOTSTRAP_ADMIN_EMAIL"))
+        .ok()
+        .filter(|s| !s.is_empty());
+    if let Some(t) = target {
+        if t.eq_ignore_ascii_case(email) {
+            grant_role(db, user_id, role::ADMIN).await?;
+        }
+    }
+    Ok(())
 }
 
 /// Grant the baseline role every newly-created (non-anonymous) account gets.
@@ -624,6 +648,7 @@ pub async fn create_password_user(
     };
 
     assign_default_role(db, user_id).await?;
+    maybe_bootstrap_admin(db, user_id, Some(email)).await?;
     Ok(user_id)
 }
 
