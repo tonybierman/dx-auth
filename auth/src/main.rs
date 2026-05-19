@@ -26,10 +26,21 @@ use components::login_panel::{LoginPanel, LoginProvider, LoginSubmit, SubmitKind
 #[cfg(feature = "server")]
 mod auth;
 
+#[cfg(feature = "server")]
+mod mail;
+
 const THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
 const APP_CSS: Asset = asset!("/assets/app.css");
 
 const GITHUB_ICON_SVG: &str = r#"<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>"#;
+
+/// Third-party identity providers the server knows how to handle. Each entry
+/// in `available_providers`'s return value gets mapped to a `LoginProvider` on
+/// the client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderId {
+    Github,
+}
 
 /// Profile fields safe to expose to the client.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -71,19 +82,37 @@ fn main() {
         // Apply embedded migrations (compiled from auth/migrations/*.sql).
         sqlx::migrate!().run(&db).await?;
 
-        // Build third-party OAuth state (GitHub) from env vars.
+        // Build third-party OAuth state (GitHub) from env vars. Returns None
+        // when credentials are unset — we skip the routes in that case and
+        // the UI hides the provider button via `available_providers` below.
         let oauth_clients = OAuthClients::from_env(db.clone())?;
+        match &oauth_clients {
+            Some(_) => println!("[startup] GitHub OAuth: enabled"),
+            None => println!(
+                "[startup] GitHub OAuth: disabled (set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET to enable)"
+            ),
+        }
 
-        let oauth_router = axum::Router::new()
-            .route("/auth/github/login", axum::routing::get(github_login))
-            .route("/auth/github/callback", axum::routing::get(github_callback))
-            .with_state(oauth_clients);
+        // Email infrastructure — SMTP if env vars are set, otherwise the dev
+        // file backend that writes .eml files to ./emails/.
+        let mailer = crate::mail::Mailer::from_env()?;
+        println!("[startup] mailer backend: {}", mailer.describe());
 
-        // Create an axum router that dioxus will attach the app to
-        Ok(dioxus::server::router(app)
-            .merge(oauth_router)
+        // Start from the base Dioxus router and merge in the OAuth subrouter
+        // only when credentials were configured.
+        let mut router = dioxus::server::router(app);
+        if let Some(clients) = oauth_clients {
+            let oauth_router = axum::Router::new()
+                .route("/auth/github/login", axum::routing::get(github_login))
+                .route("/auth/github/callback", axum::routing::get(github_callback))
+                .with_state(clients);
+            router = router.merge(oauth_router);
+        }
+
+        Ok(router
             // Make the SqlitePool reachable from server fns via `axum::Extension`.
             .layer(axum::Extension(db.clone()))
+            .layer(axum::Extension(mailer.clone()))
             .layer(
                 AuthLayer::new(Some(db.clone()))
                     .with_config(AuthConfig::<i64>::default().with_anonymous_user_id(Some(1))),
@@ -107,11 +136,15 @@ fn app() -> Element {
     let mut permissions = use_action(get_permissions);
     let mut logout = use_action(logout);
 
-    let providers = vec![LoginProvider {
-        name: "GitHub",
-        href: "/auth/github/login",
-        icon_svg: Some(GITHUB_ICON_SVG),
-    }];
+    // Configured providers are server-controlled — env vars decide what's
+    // available, so the client just renders whatever the server reports.
+    let providers_resource = use_resource(available_providers);
+    let providers: Vec<LoginProvider> = providers_resource()
+        .and_then(|r| r.ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(provider_descriptor)
+        .collect();
 
     let current: UserProfile = profile()
         .and_then(|r| r.ok())
@@ -232,6 +265,18 @@ fn ProfileCard(profile: UserProfile) -> Element {
     }
 }
 
+/// Map a server-reported `ProviderId` to the static display info the
+/// `LoginPanel` needs (display name, login route, icon).
+fn provider_descriptor(id: ProviderId) -> LoginProvider {
+    match id {
+        ProviderId::Github => LoginProvider {
+            name: "GitHub",
+            href: "/auth/github/login",
+            icon_svg: Some(GITHUB_ICON_SVG),
+        },
+    }
+}
+
 /// Extract just the human-readable message from a server function error so the
 /// panel renders "Invalid email or password." instead of the verbose Display
 /// wrapper ("error running server function: <message> (details: ...)") that
@@ -258,8 +303,30 @@ pub async fn logout() -> Result<()> {
     Ok(())
 }
 
+/// Which third-party providers the server has credentials configured for.
+/// The UI uses this to decide which provider buttons to render.
+#[get("/api/auth/providers")]
+pub async fn available_providers() -> Result<Vec<ProviderId>> {
+    let mut providers = Vec::new();
+    let id_set = std::env::var("GITHUB_CLIENT_ID")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some();
+    let secret_set = std::env::var("GITHUB_CLIENT_SECRET")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some();
+    if id_set && secret_set {
+        providers.push(ProviderId::Github);
+    }
+    Ok(providers)
+}
+
 #[cfg(feature = "server")]
 type DbExtension = axum::Extension<sqlx::SqlitePool>;
+
+#[cfg(feature = "server")]
+type MailExtension = axum::Extension<crate::mail::Mailer>;
 
 /// Create a new email/password account and log it in.
 #[post("/api/user/register-password", auth: auth::Session, db: DbExtension)]

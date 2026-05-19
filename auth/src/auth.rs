@@ -104,11 +104,33 @@ pub(crate) struct OAuthClients {
 }
 
 impl OAuthClients {
-    pub fn from_env(db: SqlitePool) -> anyhow::Result<Self> {
-        let github_client_id = std::env::var("GITHUB_CLIENT_ID")
-            .map_err(|_| anyhow::anyhow!("GITHUB_CLIENT_ID must be set"))?;
-        let github_client_secret = std::env::var("GITHUB_CLIENT_SECRET")
-            .map_err(|_| anyhow::anyhow!("GITHUB_CLIENT_SECRET must be set"))?;
+    /// Build `OAuthClients` from env vars.
+    ///
+    /// Returns `Ok(Some(_))` when GitHub credentials are configured (both
+    /// `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` set and non-empty), or
+    /// `Ok(None)` when they're absent — the caller should then skip
+    /// registering the OAuth routes and the UI should hide the provider
+    /// button. Errors are reserved for genuine misconfiguration (e.g. failure
+    /// to build the HTTP client).
+    pub fn from_env(db: SqlitePool) -> anyhow::Result<Option<Self>> {
+        let id = std::env::var("GITHUB_CLIENT_ID").ok().filter(|s| !s.is_empty());
+        let secret = std::env::var("GITHUB_CLIENT_SECRET")
+            .ok()
+            .filter(|s| !s.is_empty());
+
+        let (github_client_id, github_client_secret) = match (id, secret) {
+            (Some(i), Some(s)) => (i, s),
+            (None, None) => return Ok(None),
+            _ => {
+                eprintln!(
+                    "[startup] WARN: partial GitHub OAuth config — both \
+                     GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are required. \
+                     Disabling GitHub sign-in."
+                );
+                return Ok(None);
+            }
+        };
+
         let github_redirect_url = std::env::var("GITHUB_REDIRECT_URL")
             .unwrap_or_else(|_| "http://localhost:8080/auth/github/callback".to_string());
 
@@ -117,13 +139,13 @@ impl OAuthClients {
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
 
-        Ok(Self {
+        Ok(Some(Self {
             db,
             http,
             github_client_id,
             github_client_secret,
             github_redirect_url,
-        })
+        }))
     }
 }
 
