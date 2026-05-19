@@ -175,14 +175,13 @@ fn EventTable(rows: Vec<AuditEventView>) -> Element {
 
 #[component]
 fn EventRow(row: AuditEventView) -> Element {
-    let when = format_unix(row.occurred_at);
     let actor = pretty_user(row.actor_id, row.actor_email.as_deref());
     let target = pretty_user(row.target_id, row.target_email.as_deref());
     let ip = row.ip.clone().unwrap_or_else(|| "—".to_string());
     let details = row.details.clone().unwrap_or_default();
     rsx! {
         tr {
-            td { "{when}" }
+            td { "{row.occurred_at_iso}" }
             td { code { "{row.event_type}" } }
             td { "{actor}" }
             td { "{target}" }
@@ -204,16 +203,4 @@ fn pretty_user(id: Option<i64>, email: Option<&str>) -> String {
         (Some(i), None) => format!("#{i}"),
         _ => "—".to_string(),
     }
-}
-
-/// Best-effort UTC timestamp formatter. Falls back to the raw unix seconds
-/// if chrono isn't available — but since the library always has chrono in
-/// scope this is just the happy path.
-fn format_unix(secs: i64) -> String {
-    use chrono::TimeZone;
-    chrono::Utc
-        .timestamp_opt(secs, 0)
-        .single()
-        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-        .unwrap_or_else(|| secs.to_string())
 }

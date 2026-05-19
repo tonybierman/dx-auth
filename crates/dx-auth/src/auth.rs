@@ -1313,6 +1313,7 @@ pub mod audit {
             .map(|r| AuditEventView {
                 id: r.id,
                 occurred_at: r.occurred_at,
+                occurred_at_iso: format_unix(r.occurred_at),
                 event_type: r.event_type,
                 actor_id: r.actor_id,
                 actor_email: r.actor_email,
@@ -1323,6 +1324,15 @@ pub mod audit {
                 details: r.details,
             })
             .collect())
+    }
+
+    fn format_unix(secs: i64) -> String {
+        use chrono::TimeZone;
+        chrono::Utc
+            .timestamp_opt(secs, 0)
+            .single()
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+            .unwrap_or_else(|| secs.to_string())
     }
 
     /// Delete rows older than `retention_days`. Returns the number of rows

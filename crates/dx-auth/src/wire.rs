@@ -101,6 +101,9 @@ pub struct AdminRoleDetail {
 pub struct AuditEventView {
     pub id: i64,
     pub occurred_at: i64,
+    /// Human-readable rendering of `occurred_at`, formatted server-side
+    /// so the client doesn't need a date library.
+    pub occurred_at_iso: String,
     pub event_type: String,
     pub actor_id: Option<i64>,
     pub actor_email: Option<String>,
