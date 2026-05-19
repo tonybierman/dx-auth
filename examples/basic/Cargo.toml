@@ -8,8 +8,20 @@ publish = false
 dioxus = { version = "0.7.9", features = ["fullstack", "router"] }
 dioxus-web = { version = "0.7.9", features = ["hydrate"], optional = true }
 
-# The library — pulled in with both server-side and ui pieces enabled.
-dx-auth = { path = "../../crates/dx-auth", default-features = false, features = ["ui"] }
+# The library — pulled in with the UI components and every capability
+# the example surfaces (MFA, mail, OAuth, ratelimit). These capability
+# features have to be on for BOTH the wasm/client and server builds so
+# the dioxus `#[post]` macro generates the client-side stub. Bare
+# `dep:` crates (totp-rs, lettre, oauth2, reqwest, tower_governor) only
+# get used from inside `#[cfg(feature = "server")]` blocks in dx-auth,
+# so they're inert on the wasm side.
+dx-auth = { path = "../../crates/dx-auth", default-features = false, features = [
+    "ui",
+    "mfa",
+    "mail",
+    "oauth-github",
+    "ratelimit",
+] }
 
 # Server-side deps the example still touches directly (sqlx for the pool +
 # migrations, axum_session_auth for the Auth/Rights check in get_permissions).
@@ -39,9 +51,5 @@ server = [
     "dep:axum_session_auth",
     "dx-auth/server",
     "dx-auth/sqlite",
-    "dx-auth/oauth-github",
-    "dx-auth/mfa",
-    "dx-auth/mail",
-    "dx-auth/ratelimit",
 ]
 web = ["dioxus/web", "dep:dioxus-web"]

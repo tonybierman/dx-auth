@@ -70,7 +70,13 @@ axum_session_sqlx = { version = "0.5.0", default-features = false, optional = tr
 argon2 = { version = "0.5", optional = true }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
-# Per-capability optional deps.
+# Per-capability optional deps. Target-gated to non-wasm because the
+# wasm/web client only needs the feature flags to be ON (to make the
+# `#[cfg(feature = "mfa")]` etc. server-fn declarations visible so the
+# dioxus macro can generate the client-side fetch stubs); the actual
+# crates (lettre, totp-rs, reqwest, ...) are only used from inside
+# `#[cfg(feature = "server")]` blocks and don't compile for wasm.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 oauth2 = { version = "5", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
 lettre = { version = "0.11", default-features = false, features = [
