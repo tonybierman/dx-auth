@@ -70,6 +70,7 @@ axum_session_auth = { version = "0.16.0", optional = true }
 axum_session_sqlx = { version = "0.5.0", default-features = false, optional = true }
 argon2 = { version = "0.5", optional = true }
 chrono = { version = "0.4", default-features = false, features = ["clock"], optional = true }
+dioxus-icons = { version = "0.1.0", default-features = false }
 
 # Per-capability optional deps. Target-gated to non-wasm because the
 # wasm/web client only needs the feature flags to be ON (to make the
