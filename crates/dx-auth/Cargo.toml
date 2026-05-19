@@ -9,10 +9,9 @@ description = "Reusable authentication library for Dioxus 0.7 fullstack apps."
 path = "src/lib.rs"
 
 [features]
-default = ["server", "ui", "sqlite"]
+default = ["server", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit"]
 
-# Server-only deps. Disabled when the consuming crate builds for wasm so the
-# library stays compatible with client-side compilation.
+# Core server runtime — required for any backend functionality.
 server = [
     "dep:axum",
     "dep:tokio",
@@ -24,12 +23,7 @@ server = [
     "dep:axum_session",
     "dep:axum_session_auth",
     "dep:axum_session_sqlx",
-    "dep:oauth2",
-    "dep:reqwest",
     "dep:argon2",
-    "dep:lettre",
-    "dep:tower_governor",
-    "dep:totp-rs",
     "dep:chrono",
     "dioxus/server",
 ]
@@ -37,11 +31,17 @@ server = [
 # UI components (LoginPanel, etc.).
 ui = ["dep:dioxus-primitives"]
 
-# Pick exactly one of `sqlite` or `postgres`. Default-features enable
-# `sqlite`; consumers wanting Postgres do:
-#   dx-auth = { ..., default-features = false, features = ["server", "ui", "postgres"] }
+# Backend selection — pick exactly one.
 sqlite = ["sqlx/sqlite", "axum_session_sqlx/sqlite"]
 postgres = ["sqlx/postgres", "axum_session_sqlx/postgres"]
+
+# Optional per-capability features. All on by default; turn individual
+# ones off to slim the build down (e.g. an OAuth-only app can drop
+# `mail` and the email-send code disappears).
+oauth-github = ["dep:oauth2", "dep:reqwest"]
+mfa = ["dep:totp-rs"]
+mail = ["dep:lettre"]
+ratelimit = ["dep:tower_governor"]
 
 [dependencies]
 dioxus = { version = "0.7.9", features = ["fullstack"] }
@@ -51,7 +51,7 @@ anyhow = "1.0.98"
 # UI
 dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false, optional = true }
 
-# Server
+# Server core
 axum = { version = "0.8.4", default-features = false, optional = true, features = ["macros"] }
 tokio = { version = "1.48", features = ["full"], optional = true }
 tower-http = { version = "0.6.8", features = ["auth"], optional = true }
@@ -68,9 +68,12 @@ sqlx = { version = "0.8.6", default-features = false, features = [
 axum_session = { version = "0.16.0", optional = true }
 axum_session_auth = { version = "0.16.0", optional = true }
 axum_session_sqlx = { version = "0.5.0", default-features = false, optional = true }
+argon2 = { version = "0.5", optional = true }
+chrono = { version = "0.4", default-features = false, optional = true }
+
+# Per-capability optional deps.
 oauth2 = { version = "5", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
-argon2 = { version = "0.5", optional = true }
 lettre = { version = "0.11", default-features = false, features = [
     "smtp-transport",
     "tokio1",
@@ -80,4 +83,3 @@ lettre = { version = "0.11", default-features = false, features = [
 ], optional = true }
 tower_governor = { version = "0.8", default-features = false, features = ["axum"], optional = true }
 totp-rs = { version = "5", features = ["qr", "gen_secret"], optional = true }
-chrono = { version = "0.4", default-features = false, optional = true }

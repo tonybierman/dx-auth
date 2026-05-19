@@ -14,6 +14,8 @@ use crate::pool::SessionPool;
 
 use crate::auth::AuthLayer;
 use crate::config::AuthConfig;
+
+#[cfg(feature = "oauth-github")]
 use crate::server::{github_callback, github_login};
 
 /// Attach all dx-auth wiring to `router` and return the augmented Router.
@@ -34,7 +36,8 @@ use crate::server::{github_callback, github_login};
 pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> {
     let mut router = router;
 
-    // 1) GitHub OAuth routes, opt-in.
+    // 1) GitHub OAuth routes, opt-in (compiled out without `oauth-github`).
+    #[cfg(feature = "oauth-github")]
     if let Some(clients) = cfg.github_oauth.clone() {
         let oauth_router = Router::new()
             .route("/auth/github/login", axum::routing::get(github_login))
@@ -43,7 +46,8 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
         router = router.merge(oauth_router);
     }
 
-    // 2) Rate limit (opt-out).
+    // 2) Rate limit (compiled out without `ratelimit`).
+    #[cfg(feature = "ratelimit")]
     if let Some(rl) = cfg.rate_limit.as_ref() {
         let governor_config = std::sync::Arc::new(
             tower_governor::governor::GovernorConfigBuilder::default()
@@ -53,7 +57,6 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
                 .finish()
                 .expect("valid governor config"),
         );
-        // Prune stale per-IP buckets so the in-memory table doesn't grow forever.
         let limiter = governor_config.limiter().clone();
         tokio::spawn(async move {
             loop {
@@ -65,9 +68,11 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
     }
 
     // 3) Extensions visible to all server fns.
-    router = router
-        .layer(axum::Extension(cfg.pool.clone()))
-        .layer(axum::Extension(cfg.mailer.clone()));
+    router = router.layer(axum::Extension(cfg.pool.clone()));
+    #[cfg(feature = "mail")]
+    {
+        router = router.layer(axum::Extension(cfg.mailer.clone()));
+    }
 
     // 4) Auth session layer (anonymous Guest user id 1).
     router = router.layer(
@@ -98,9 +103,11 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
 /// `dx serve` without `ConnectInfo`). Without this fallback the very first
 /// request 500s with "Unable To Extract Key!". In production behind a real
 /// proxy the smart path will fire and per-IP limits kick in normally.
+#[cfg(feature = "ratelimit")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LenientIpKeyExtractor;
 
+#[cfg(feature = "ratelimit")]
 impl tower_governor::key_extractor::KeyExtractor for LenientIpKeyExtractor {
     type Key = std::net::IpAddr;
 

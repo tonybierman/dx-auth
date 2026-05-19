@@ -15,7 +15,7 @@ use crate::auth;
 #[cfg(feature = "server")]
 pub(crate) type DbExtension = axum::Extension<crate::pool::Pool>;
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mail"))]
 pub(crate) type MailExtension = axum::Extension<crate::mail::Mailer>;
 
 #[cfg(feature = "server")]
@@ -24,14 +24,14 @@ pub(crate) type SessionStore = axum_session::Session<crate::pool::SessionPool>;
 /// Session key under which we stash `(user_id, expires_at_unix, remember_me)`
 /// between a successful password verification and the user submitting their
 /// TOTP code.
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mfa"))]
 const MFA_PENDING_KEY: &str = "mfa_pending";
 
 /// How long the pending challenge survives in the session.
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mfa"))]
 const MFA_PENDING_TTL_SECS: i64 = 5 * 60;
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mfa"))]
 fn unix_now_seconds() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -89,14 +89,25 @@ pub async fn available_providers() -> Result<Vec<ProviderId>> {
 // Email / password
 // ============================================================
 
-/// Create a new email/password account. Issues an email verification token
-/// and sends the link via the Mailer. The user is **not** logged in until
-/// they click the link.
+/// Create a new email/password account. With `mail` enabled the user gets a
+/// verification email and isn't logged in until they confirm; without `mail`
+/// the new account is marked verified immediately (no email infrastructure
+/// available) and the caller can sign in straight away.
+#[cfg(feature = "mail")]
 #[post("/api/user/register-password", db: DbExtension, mail: MailExtension)]
 pub async fn register_with_password(email: String, password: String) -> Result<LoginOutcome> {
     let user_id = auth::create_password_user(&db.0, &email, &password).await?;
     send_verification_email(&db.0, &mail.0, user_id, &email).await;
     Ok(LoginOutcome::EmailUnverified)
+}
+
+#[cfg(not(feature = "mail"))]
+#[post("/api/user/register-password", db: DbExtension)]
+pub async fn register_with_password(email: String, password: String) -> Result<LoginOutcome> {
+    let _user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    // No mailer wired in → skip the verification round-trip. (Caller's choice;
+    // they opted out of the `mail` feature.)
+    Ok(LoginOutcome::LoggedIn)
 }
 
 /// Log in with an existing email/password account. `remember_me` upgrades the
@@ -110,15 +121,17 @@ pub async fn login_with_password(
 ) -> Result<LoginOutcome> {
     match auth::verify_password_user(&db.0, &email, &password).await? {
         auth::VerifyOutcome::Verified(user_id) => {
-            if auth::user_has_mfa(&db.0, user_id).await? {
-                let expires_at = unix_now_seconds() + MFA_PENDING_TTL_SECS;
-                session.set(MFA_PENDING_KEY, (user_id, expires_at, remember_me));
-                Ok(LoginOutcome::MfaRequired)
-            } else {
-                session.set_longterm(remember_me);
-                auth.login_user(user_id);
-                Ok(LoginOutcome::LoggedIn)
+            #[cfg(feature = "mfa")]
+            {
+                if auth::user_has_mfa(&db.0, user_id).await? {
+                    let expires_at = unix_now_seconds() + MFA_PENDING_TTL_SECS;
+                    session.set(MFA_PENDING_KEY, (user_id, expires_at, remember_me));
+                    return Ok(LoginOutcome::MfaRequired);
+                }
             }
+            session.set_longterm(remember_me);
+            auth.login_user(user_id);
+            Ok(LoginOutcome::LoggedIn)
         }
         auth::VerifyOutcome::Unverified => Ok(LoginOutcome::EmailUnverified),
         auth::VerifyOutcome::Invalid => {
@@ -133,6 +146,7 @@ pub async fn login_with_password(
 
 /// Kick off the password reset flow. Always returns Ok regardless of whether
 /// the email is registered, so the response can't be used to enumerate users.
+#[cfg(feature = "mail")]
 #[post("/api/user/request-password-reset", db: DbExtension, mail: MailExtension)]
 pub async fn request_password_reset_email(email: String) -> Result<()> {
     if let Some(token) = auth::request_password_reset(&db.0, &email).await? {
@@ -159,6 +173,7 @@ pub async fn reset_password(token: String, new_password: String) -> Result<()> {
 /// Re-issue a verification email for an account that hasn't yet confirmed.
 /// Always returns Ok so the response can't be used to enumerate which
 /// addresses are registered and unverified.
+#[cfg(feature = "mail")]
 #[post("/api/user/resend-verification", db: DbExtension, mail: MailExtension)]
 pub async fn resend_verification_email(email: String) -> Result<()> {
     if let Some(user_id) = auth::find_unverified_user_id(&db.0, &email).await? {
@@ -178,7 +193,7 @@ pub async fn verify_email(token: String) -> Result<bool> {
 /// Internal helper: issue a token and send the verification email. Failures
 /// are logged but never bubble up to the caller — we don't want a flaky SMTP
 /// relay to fail the user-facing sign-up.
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mail"))]
 async fn send_verification_email(
     db: &crate::pool::Pool,
     mail: &crate::mail::Mailer,
@@ -203,6 +218,7 @@ async fn send_verification_email(
 
 /// Submit a TOTP (or recovery) code to finish the second-factor challenge
 /// kicked off by a successful password login.
+#[cfg(feature = "mfa")]
 #[post("/api/user/verify-mfa", auth: auth::Session, db: DbExtension, session: SessionStore)]
 pub async fn verify_login_mfa(code: String) -> Result<LoginOutcome> {
     let pending: Option<(i64, i64, bool)> = session.get(MFA_PENDING_KEY);
@@ -231,6 +247,7 @@ pub async fn verify_login_mfa(code: String) -> Result<LoginOutcome> {
 }
 
 /// Cancel an in-flight MFA challenge so the user can restart sign-in.
+#[cfg(feature = "mfa")]
 #[post("/api/user/cancel-mfa", session: SessionStore)]
 pub async fn cancel_mfa_challenge() -> Result<()> {
     session.remove(MFA_PENDING_KEY);
@@ -244,6 +261,7 @@ pub async fn cancel_mfa_challenge() -> Result<()> {
 /// Start MFA enrollment for the current user. Returns the secret + QR PNG +
 /// the freshly-generated recovery codes (the only time the codes appear in
 /// plaintext anywhere).
+#[cfg(feature = "mfa")]
 #[post("/api/user/mfa/setup", auth: auth::Session, db: DbExtension)]
 pub async fn begin_mfa_setup() -> Result<MfaSetupView> {
     let user = auth
@@ -268,6 +286,7 @@ pub async fn begin_mfa_setup() -> Result<MfaSetupView> {
 }
 
 /// Confirm enrollment by submitting a current TOTP code.
+#[cfg(feature = "mfa")]
 #[post("/api/user/mfa/confirm", auth: auth::Session, db: DbExtension)]
 pub async fn confirm_mfa_setup(code: String) -> Result<()> {
     let user = auth
@@ -285,6 +304,7 @@ pub async fn confirm_mfa_setup(code: String) -> Result<()> {
 }
 
 /// Turn off MFA for the current user. Wipes the secret and all recovery codes.
+#[cfg(feature = "mfa")]
 #[post("/api/user/mfa/disable", auth: auth::Session, db: DbExtension)]
 pub async fn disable_mfa_for_user() -> Result<()> {
     let user = auth
@@ -300,6 +320,7 @@ pub async fn disable_mfa_for_user() -> Result<()> {
 
 /// Look up MFA enrollment state so the `/account/mfa` page can decide what
 /// to render.
+#[cfg(feature = "mfa")]
 #[get("/api/user/mfa/status", auth: auth::Session, db: DbExtension)]
 pub async fn get_mfa_status() -> Result<MfaStatusView> {
     let user = auth
@@ -320,17 +341,17 @@ pub async fn get_mfa_status() -> Result<MfaStatusView> {
 // GitHub OAuth (axum handlers — not Dioxus server fns)
 // ============================================================
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 use crate::auth::OAuthClients;
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 #[derive(serde::Deserialize)]
 pub(crate) struct GithubCallbackParams {
     code: String,
     state: String,
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 #[derive(serde::Deserialize)]
 struct GithubUserInfo {
     id: u64,
@@ -341,7 +362,7 @@ struct GithubUserInfo {
     html_url: Option<String>,
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 fn github_basic_client(
     clients: &OAuthClients,
 ) -> anyhow::Result<
@@ -369,7 +390,7 @@ fn github_basic_client(
     )
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 fn http_err<E: std::fmt::Display>(
     status: axum::http::StatusCode,
     e: E,
@@ -377,7 +398,7 @@ fn http_err<E: std::fmt::Display>(
     (status, e.to_string())
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 pub(crate) async fn github_login(
     axum::extract::State(clients): axum::extract::State<OAuthClients>,
     session: SessionStore,
@@ -398,7 +419,7 @@ pub(crate) async fn github_login(
     Ok(axum::response::Redirect::to(auth_url.as_ref()))
 }
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "oauth-github"))]
 pub(crate) async fn github_callback(
     axum::extract::State(clients): axum::extract::State<OAuthClients>,
     session: SessionStore,

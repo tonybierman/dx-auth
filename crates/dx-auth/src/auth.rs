@@ -94,6 +94,7 @@ impl HasPermission<Pool> for User {
     }
 }
 
+#[cfg(feature = "oauth-github")]
 #[derive(Clone)]
 pub struct OAuthClients {
     pub db: Pool,
@@ -103,6 +104,7 @@ pub struct OAuthClients {
     pub github_redirect_url: String,
 }
 
+#[cfg(feature = "oauth-github")]
 impl OAuthClients {
     /// Build `OAuthClients` from env vars.
     ///
@@ -150,6 +152,7 @@ impl OAuthClients {
 }
 
 /// The subset of GitHub's `/user` response we persist locally.
+#[cfg(feature = "oauth-github")]
 pub struct GithubProfile<'a> {
     pub id: u64,
     pub login: &'a str,
@@ -178,6 +181,7 @@ pub struct GithubProfile<'a> {
 /// so the link branch is best-effort. Linking is safe because the email on
 /// `GithubProfile` came from an authenticated GitHub session — i.e. the
 /// caller already controls that mailbox.
+#[cfg(feature = "oauth-github")]
 pub async fn upsert_github_user(
     db: &Pool,
     profile: GithubProfile<'_>,
@@ -560,13 +564,16 @@ pub async fn consume_verification_token(
 
 // =============== TOTP MFA ==================
 
+#[cfg(feature = "mfa")]
 const MFA_ISSUER: &str = "dx-auth example";
+#[cfg(feature = "mfa")]
 const RECOVERY_CODE_COUNT: usize = 10;
 
 /// Result of `setup_mfa_secret`: secret bytes (so the user can manually
 /// type them if their scanner is broken), a data-URL-ready PNG QR code,
 /// and the freshly-minted plaintext recovery codes (shown ONCE — only the
 /// hashes hit the DB).
+#[cfg(feature = "mfa")]
 pub struct MfaSetupInfo {
     pub secret_base32: String,
     pub qr_png_base64: String,
@@ -575,6 +582,7 @@ pub struct MfaSetupInfo {
 
 /// High-level status of MFA on a single account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "mfa")]
 pub enum MfaStatus {
     /// No secret stored.
     Disabled,
@@ -588,6 +596,7 @@ pub enum MfaStatus {
 /// persist the pending secret on the user (mfa_enabled_at stays NULL until
 /// they confirm a TOTP), and store Argon2 hashes of the recovery codes.
 /// Re-running on a still-pending or enabled account wipes the old data.
+#[cfg(feature = "mfa")]
 pub async fn setup_mfa_secret(
     db: &Pool,
     user_id: i64,
@@ -658,6 +667,7 @@ pub async fn setup_mfa_secret(
 
 /// Confirm enrollment by validating a current TOTP from the pending secret.
 /// Returns `true` when the code matched and `mfa_enabled_at` is now set.
+#[cfg(feature = "mfa")]
 pub async fn enable_mfa(
     db: &Pool,
     user_id: i64,
@@ -679,6 +689,7 @@ pub async fn enable_mfa(
 
 /// Login-time second-factor check. Accepts a 6-digit TOTP code or one of
 /// the user's unused recovery codes (marked used on success).
+#[cfg(feature = "mfa")]
 pub async fn verify_mfa_challenge(
     db: &Pool,
     user_id: i64,
@@ -697,6 +708,7 @@ pub async fn verify_mfa_challenge(
 
 /// Fully turn off MFA: clear the secret, the enabled timestamp, and any
 /// recovery codes.
+#[cfg(feature = "mfa")]
 pub async fn disable_mfa(db: &Pool, user_id: i64) -> anyhow::Result<()> {
     let mut tx = db.begin().await?;
     sqlx::query("UPDATE users SET mfa_secret = NULL, mfa_enabled_at = NULL WHERE id = $1")
@@ -712,6 +724,7 @@ pub async fn disable_mfa(db: &Pool, user_id: i64) -> anyhow::Result<()> {
 }
 
 /// Returns true iff the user has fully completed enrollment.
+#[cfg(feature = "mfa")]
 pub async fn user_has_mfa(db: &Pool, user_id: i64) -> anyhow::Result<bool> {
     let row: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT mfa_enabled_at FROM users WHERE id = $1")
@@ -722,6 +735,7 @@ pub async fn user_has_mfa(db: &Pool, user_id: i64) -> anyhow::Result<bool> {
 }
 
 /// Used by the /account/mfa page to decide which actions to render.
+#[cfg(feature = "mfa")]
 pub async fn mfa_status(db: &Pool, user_id: i64) -> anyhow::Result<MfaStatus> {
     let row: Option<(Option<String>, Option<i64>)> =
         sqlx::query_as("SELECT mfa_secret, mfa_enabled_at FROM users WHERE id = $1")
@@ -735,6 +749,7 @@ pub async fn mfa_status(db: &Pool, user_id: i64) -> anyhow::Result<MfaStatus> {
     })
 }
 
+#[cfg(feature = "mfa")]
 async fn load_mfa_secret(db: &Pool, user_id: i64) -> anyhow::Result<Option<String>> {
     let row: Option<(Option<String>,)> =
         sqlx::query_as("SELECT mfa_secret FROM users WHERE id = $1")
@@ -744,6 +759,7 @@ async fn load_mfa_secret(db: &Pool, user_id: i64) -> anyhow::Result<Option<Strin
     Ok(row.and_then(|(s,)| s))
 }
 
+#[cfg(feature = "mfa")]
 fn check_totp(secret_base32: &str, code: &str) -> bool {
     use totp_rs::{Algorithm, Secret, TOTP};
     let Ok(bytes) = Secret::Encoded(secret_base32.to_string()).to_bytes() else {
@@ -755,6 +771,7 @@ fn check_totp(secret_base32: &str, code: &str) -> bool {
     totp.check_current(code).unwrap_or(false)
 }
 
+#[cfg(feature = "mfa")]
 async fn consume_recovery_code(
     db: &Pool,
     user_id: i64,
@@ -792,6 +809,7 @@ async fn consume_recovery_code(
     Ok(false)
 }
 
+#[cfg(feature = "mfa")]
 fn generate_recovery_code<R: argon2::password_hash::rand_core::RngCore>(rng: &mut R) -> String {
     // Crockford-style alphabet (no ambiguous chars). 10 chars × ~5 bits ≈ 50
     // bits per code — plenty for one-time backups.

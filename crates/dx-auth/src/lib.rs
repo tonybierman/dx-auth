@@ -37,7 +37,7 @@ pub mod pool;
 #[cfg(feature = "server")]
 pub mod auth;
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mail"))]
 pub mod mail;
 
 #[cfg(feature = "server")]
@@ -47,12 +47,15 @@ pub mod config;
 mod install;
 
 #[cfg(feature = "server")]
-pub use config::{AuthConfig, AuthConfigBuilder, RateLimitConfig};
+pub use config::{AuthConfig, AuthConfigBuilder};
+
+#[cfg(all(feature = "server", feature = "ratelimit"))]
+pub use config::RateLimitConfig;
 
 #[cfg(feature = "server")]
 pub use install::install;
 
-#[cfg(feature = "server")]
+#[cfg(all(feature = "server", feature = "mail"))]
 pub use mail::Mailer;
 
 // Wire-types re-exported at the crate root for ergonomics.
