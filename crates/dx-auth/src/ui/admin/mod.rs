@@ -8,4 +8,6 @@
 //! message if the server rejects).
 
 mod admin_screens;
+mod audit_log;
 pub use admin_screens::{AdminUserDetail, AdminUserList};
+pub use audit_log::AuditLog;

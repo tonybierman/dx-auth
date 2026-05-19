@@ -77,6 +77,8 @@ enum Route {
     AdminUsersPage,
     #[route("/admin/users/:user_id")]
     AdminUserPage { user_id: i64 },
+    #[route("/admin/audit")]
+    AdminAuditPage,
 }
 
 fn app() -> Element {
@@ -154,6 +156,7 @@ fn Home() -> Element {
                     a { class: "app-link", href: "/account/settings", "Account" }
                     a { class: "app-link", href: "/account/mfa", "Two-factor auth" }
                     a { class: "app-link", href: "/admin/users", "Admin" }
+                    a { class: "app-link", href: "/admin/audit", "Audit log" }
                     Button {
                         variant: ButtonVariant::Outline,
                         onclick: move |_| async move {
@@ -893,6 +896,16 @@ fn AdminUserPage(user_id: i64) -> Element {
                     nav.push(Route::AdminUsersPage);
                 },
             }
+        }
+    }
+}
+
+#[component]
+fn AdminAuditPage() -> Element {
+    rsx! {
+        main { class: "app-shell",
+            dx_auth::ui::AuditLog {}
+            p { class: "auth-aux", a { href: "/", "← Back to home" } }
         }
     }
 }

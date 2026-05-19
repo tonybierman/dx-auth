@@ -69,9 +69,34 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
 
     // 3) Extensions visible to all server fns.
     router = router.layer(axum::Extension(cfg.pool.clone()));
+    router = router.layer(axum::Extension(cfg.audit.clone()));
     #[cfg(feature = "mail")]
     {
         router = router.layer(axum::Extension(cfg.mailer.clone()));
+    }
+
+    // 3b) Background audit-log prune. No-ops when retention_days == 0.
+    if cfg.audit.retention_days > 0 {
+        let prune_pool = cfg.pool.clone();
+        let retention = cfg.audit.retention_days;
+        tokio::spawn(async move {
+            // First sweep on the next minute, then hourly. Long-running
+            // processes should still see at least one sweep early so a
+            // freshly-restarted app doesn't carry a 6-month backlog.
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            loop {
+                match crate::auth::audit::prune(&prune_pool, retention).await {
+                    Ok(n) if n > 0 => {
+                        eprintln!("[audit] pruned {n} event(s) older than {retention}d");
+                    }
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("[audit] WARN: prune failed: {err}");
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        });
     }
 
     // 4) Auth session layer (anonymous Guest user id 1).

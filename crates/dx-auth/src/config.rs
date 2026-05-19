@@ -36,6 +36,29 @@ impl Default for RateLimitConfig {
     }
 }
 
+/// Audit-log capture/retention settings. Wired into the audit emitter and
+/// the background prune task started by [`crate::install`].
+#[derive(Debug, Clone)]
+pub struct AuditConfig {
+    /// Persist client IP address with every event.
+    pub capture_ip: bool,
+    /// Persist client `User-Agent` header with every event.
+    pub capture_user_agent: bool,
+    /// Delete events older than this. Set to `0` to keep events forever
+    /// (the periodic prune task becomes a no-op).
+    pub retention_days: u64,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            capture_ip: true,
+            capture_user_agent: true,
+            retention_days: 90,
+        }
+    }
+}
+
 /// Everything the library needs to wire itself into a Dioxus fullstack app.
 #[derive(Clone)]
 pub struct AuthConfig {
@@ -50,6 +73,7 @@ pub struct AuthConfig {
     #[cfg(feature = "ratelimit")]
     pub(crate) rate_limit: Option<RateLimitConfig>,
     pub(crate) session_table_name: String,
+    pub(crate) audit: AuditConfig,
 }
 
 impl AuthConfig {
@@ -68,6 +92,7 @@ impl AuthConfig {
             #[cfg(feature = "ratelimit")]
             rate_limit: Some(RateLimitConfig::default()),
             session_table_name: "dx_auth_sessions".to_string(),
+            audit: AuditConfig::default(),
         }
     }
 
@@ -83,6 +108,7 @@ impl AuthConfig {
             #[cfg(feature = "ratelimit")]
             rate_limit: Some(RateLimitConfig::default()),
             session_table_name: "dx_auth_sessions".to_string(),
+            audit: AuditConfig::default(),
         }
     }
 }
@@ -100,6 +126,7 @@ pub struct AuthConfigBuilder {
     #[cfg(feature = "ratelimit")]
     rate_limit: Option<RateLimitConfig>,
     session_table_name: String,
+    audit: AuditConfig,
 }
 
 impl AuthConfigBuilder {
@@ -148,6 +175,12 @@ impl AuthConfigBuilder {
         self
     }
 
+    /// Replace the audit-log capture/retention settings.
+    pub fn audit(mut self, audit: AuditConfig) -> Self {
+        self.audit = audit;
+        self
+    }
+
     pub fn build(self) -> AuthConfig {
         AuthConfig {
             pool: self.pool,
@@ -161,6 +194,7 @@ impl AuthConfigBuilder {
             #[cfg(feature = "ratelimit")]
             rate_limit: self.rate_limit,
             session_table_name: self.session_table_name,
+            audit: self.audit,
         }
     }
 }

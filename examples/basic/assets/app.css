@@ -159,3 +159,73 @@ html {
   text-underline-offset: 0.2rem;
   word-break: break-all;
 }
+
+/* Admin tables (users + audit log) */
+.dx-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.dx-admin-table th,
+.dx-admin-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--primary-color-7) 50%, transparent);
+  vertical-align: top;
+}
+
+.dx-admin-table tbody tr {
+  cursor: default;
+}
+
+.dx-admin-pager {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.dx-role-badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--primary-color-7);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  margin-right: 0.25rem;
+}
+
+.dx-admin-roles {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dx-admin-role-desc {
+  color: var(--secondary-color-5);
+}
+
+/* Audit log */
+.dx-audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.dx-audit-table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+.dx-audit-details {
+  display: inline-block;
+  max-width: 24rem;
+  overflow-wrap: anywhere;
+  color: var(--secondary-color-5);
+}

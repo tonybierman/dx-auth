@@ -7,7 +7,9 @@
 
 use dioxus::prelude::*;
 
-use crate::wire::{LoginOutcome, MfaSetupView, MfaStatusView, ProviderId, UserProfile};
+use crate::wire::{LoginOutcome, ProviderId, UserProfile};
+#[cfg(feature = "mfa")]
+use crate::wire::{MfaSetupView, MfaStatusView};
 
 #[cfg(feature = "server")]
 use crate::auth;
@@ -20,6 +22,98 @@ pub(crate) type MailExtension = axum::Extension<crate::mail::Mailer>;
 
 #[cfg(feature = "server")]
 pub(crate) type SessionStore = axum_session::Session<crate::pool::SessionPool>;
+
+/// Bundle of audit-relevant request info pulled out by the extractor
+/// below. Server fns consume this and pass it through to
+/// [`crate::auth::audit::record`].
+#[cfg(feature = "server")]
+#[derive(Debug, Clone, Default)]
+pub struct AuditCtx {
+    pub config: crate::config::AuditConfig,
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+#[cfg(feature = "server")]
+impl AuditCtx {
+    pub(crate) async fn record(
+        &self,
+        db: &crate::pool::Pool,
+        event_type: &str,
+        actor_id: Option<i64>,
+        target_id: Option<i64>,
+        details: Option<&str>,
+    ) {
+        crate::auth::audit::record_or_log(
+            db,
+            crate::auth::audit::RecordInput {
+                event_type,
+                actor_id,
+                target_id,
+                ip: self.ip.as_deref(),
+                user_agent: self.user_agent.as_deref(),
+                details,
+            },
+        )
+        .await
+    }
+}
+
+#[cfg(feature = "server")]
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for AuditCtx {
+    type Rejection = std::convert::Infallible;
+
+    fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        let config = parts
+            .extensions
+            .get::<crate::config::AuditConfig>()
+            .cloned()
+            .unwrap_or_default();
+
+        let ip = if config.capture_ip {
+            parts
+                .extensions
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|ci| ci.0.ip().to_string())
+                .or_else(|| {
+                    parts
+                        .headers
+                        .get("x-forwarded-for")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.split(',').next())
+                        .map(|s| s.trim().to_string())
+                })
+                .or_else(|| {
+                    parts
+                        .headers
+                        .get("x-real-ip")
+                        .and_then(|v| v.to_str().ok())
+                        .map(|s| s.to_string())
+                })
+        } else {
+            None
+        };
+
+        let user_agent = if config.capture_user_agent {
+            parts
+                .headers
+                .get(axum::http::header::USER_AGENT)
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string())
+        } else {
+            None
+        };
+
+        std::future::ready(Ok(AuditCtx {
+            config,
+            ip,
+            user_agent,
+        }))
+    }
+}
 
 /// Session key under which we stash `(user_id, expires_at_unix, remember_me)`
 /// between a successful password verification and the user submitting their
@@ -44,9 +138,17 @@ fn unix_now_seconds() -> i64 {
 // ============================================================
 
 /// Log out the current session.
-#[post("/api/user/logout", auth: auth::Session)]
+#[post("/api/user/logout", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn logout() -> Result<()> {
+    let actor = auth.current_user.as_ref().and_then(|u| {
+        if u.anonymous { None } else { Some(u.id as i64) }
+    });
     auth.logout_user();
+    if let Some(id) = actor {
+        audit
+            .record(&db.0, auth::audit::USER_LOGOUT, Some(id), Some(id), None)
+            .await;
+    }
     Ok(())
 }
 
@@ -94,17 +196,35 @@ pub async fn available_providers() -> Result<Vec<ProviderId>> {
 /// the new account is marked verified immediately (no email infrastructure
 /// available) and the caller can sign in straight away.
 #[cfg(feature = "mail")]
-#[post("/api/user/register-password", db: DbExtension, mail: MailExtension)]
+#[post("/api/user/register-password", db: DbExtension, mail: MailExtension, audit: AuditCtx)]
 pub async fn register_with_password(email: String, password: String) -> Result<LoginOutcome> {
     let user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::USER_SIGNUP,
+            Some(user_id),
+            Some(user_id),
+            Some("{\"method\":\"password\"}"),
+        )
+        .await;
     send_verification_email(&db.0, &mail.0, user_id, &email).await;
     Ok(LoginOutcome::EmailUnverified)
 }
 
 #[cfg(not(feature = "mail"))]
-#[post("/api/user/register-password", db: DbExtension)]
+#[post("/api/user/register-password", db: DbExtension, audit: AuditCtx)]
 pub async fn register_with_password(email: String, password: String) -> Result<LoginOutcome> {
-    let _user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    let user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::USER_SIGNUP,
+            Some(user_id),
+            Some(user_id),
+            Some("{\"method\":\"password\",\"auto_verified\":true}"),
+        )
+        .await;
     // No mailer wired in → skip the verification round-trip. (Caller's choice;
     // they opted out of the `mail` feature.)
     Ok(LoginOutcome::LoggedIn)
@@ -113,7 +233,13 @@ pub async fn register_with_password(email: String, password: String) -> Result<L
 /// Log in with an existing email/password account. `remember_me` upgrades the
 /// session to the long-term branch via `set_longterm(true)`; the default
 /// short branch expires after the configured `lifetime`.
-#[post("/api/user/login-password", auth: auth::Session, db: DbExtension, session: SessionStore)]
+#[post(
+    "/api/user/login-password",
+    auth: auth::Session,
+    db: DbExtension,
+    session: SessionStore,
+    audit: AuditCtx,
+)]
 pub async fn login_with_password(
     email: String,
     password: String,
@@ -131,10 +257,41 @@ pub async fn login_with_password(
             }
             session.set_longterm(remember_me);
             auth.login_user(user_id);
+            audit
+                .record(
+                    &db.0,
+                    auth::audit::USER_LOGIN_SUCCESS,
+                    Some(user_id),
+                    Some(user_id),
+                    Some(&format!(
+                        "{{\"method\":\"password\",\"remember_me\":{remember_me}}}"
+                    )),
+                )
+                .await;
             Ok(LoginOutcome::LoggedIn)
         }
-        auth::VerifyOutcome::Unverified => Ok(LoginOutcome::EmailUnverified),
+        auth::VerifyOutcome::Unverified => {
+            audit
+                .record(
+                    &db.0,
+                    auth::audit::USER_LOGIN_FAILED,
+                    None,
+                    None,
+                    Some("{\"method\":\"password\",\"reason\":\"unverified\"}"),
+                )
+                .await;
+            Ok(LoginOutcome::EmailUnverified)
+        }
         auth::VerifyOutcome::Invalid => {
+            audit
+                .record(
+                    &db.0,
+                    auth::audit::USER_LOGIN_FAILED,
+                    None,
+                    None,
+                    Some("{\"method\":\"password\",\"reason\":\"invalid\"}"),
+                )
+                .await;
             Err(ServerFnError::new("Invalid email or password.").into())
         }
     }
@@ -147,9 +304,32 @@ pub async fn login_with_password(
 /// Kick off the password reset flow. Always returns Ok regardless of whether
 /// the email is registered, so the response can't be used to enumerate users.
 #[cfg(feature = "mail")]
-#[post("/api/user/request-password-reset", db: DbExtension, mail: MailExtension)]
+#[post(
+    "/api/user/request-password-reset",
+    db: DbExtension,
+    mail: MailExtension,
+    audit: AuditCtx,
+)]
 pub async fn request_password_reset_email(email: String) -> Result<()> {
     if let Some(token) = auth::request_password_reset(&db.0, &email).await? {
+        // Look up the user id so we can attribute the event without
+        // re-issuing the (now-burned) reset token to the API caller.
+        let user_id: Option<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM password_reset_tokens WHERE token = $1 LIMIT 1",
+        )
+        .bind(&token)
+        .fetch_optional(&db.0)
+        .await
+        .unwrap_or(None);
+        audit
+            .record(
+                &db.0,
+                auth::audit::USER_PWD_RESET_REQUESTED,
+                user_id,
+                user_id,
+                None,
+            )
+            .await;
         let link = format!("{}/auth/reset?token={token}", mail.0.base_url());
         let (subject, text, html) = crate::mail::templates::password_reset(&link);
         if let Err(err) = mail.0.send(&email, &subject, &text, html.as_deref()).await {
@@ -160,9 +340,18 @@ pub async fn request_password_reset_email(email: String) -> Result<()> {
 }
 
 /// Complete the password reset using the token from the email link.
-#[post("/api/user/reset-password", db: DbExtension)]
+#[post("/api/user/reset-password", db: DbExtension, audit: AuditCtx)]
 pub async fn reset_password(token: String, new_password: String) -> Result<()> {
-    auth::consume_password_reset(&db.0, &token, &new_password).await?;
+    let user_id = auth::consume_password_reset(&db.0, &token, &new_password).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::USER_PWD_RESET_CONSUMED,
+            Some(user_id),
+            Some(user_id),
+            None,
+        )
+        .await;
     Ok(())
 }
 
@@ -185,9 +374,21 @@ pub async fn resend_verification_email(email: String) -> Result<()> {
 /// Consume an email-verification token from the link in the user's inbox.
 /// On success the account becomes verified and any subsequent sign-in is
 /// allowed; the user still needs to enter credentials on the home page.
-#[post("/api/user/verify-email", db: DbExtension)]
+#[post("/api/user/verify-email", db: DbExtension, audit: AuditCtx)]
 pub async fn verify_email(token: String) -> Result<bool> {
-    Ok(auth::consume_verification_token(&db.0, &token).await?.is_some())
+    let user_id = auth::consume_verification_token(&db.0, &token).await?;
+    if let Some(id) = user_id {
+        audit
+            .record(
+                &db.0,
+                auth::audit::USER_EMAIL_VERIFIED,
+                Some(id),
+                Some(id),
+                None,
+            )
+            .await;
+    }
+    Ok(user_id.is_some())
 }
 
 /// Internal helper: issue a token and send the verification email. Failures
@@ -219,7 +420,13 @@ async fn send_verification_email(
 /// Submit a TOTP (or recovery) code to finish the second-factor challenge
 /// kicked off by a successful password login.
 #[cfg(feature = "mfa")]
-#[post("/api/user/verify-mfa", auth: auth::Session, db: DbExtension, session: SessionStore)]
+#[post(
+    "/api/user/verify-mfa",
+    auth: auth::Session,
+    db: DbExtension,
+    session: SessionStore,
+    audit: AuditCtx,
+)]
 pub async fn verify_login_mfa(code: String) -> Result<LoginOutcome> {
     let pending: Option<(i64, i64, bool)> = session.get(MFA_PENDING_KEY);
     let Some((user_id, expires_at, remember_me)) = pending else {
@@ -237,12 +444,32 @@ pub async fn verify_login_mfa(code: String) -> Result<LoginOutcome> {
     }
 
     if !auth::verify_mfa_challenge(&db.0, user_id, &code).await? {
+        audit
+            .record(
+                &db.0,
+                auth::audit::USER_LOGIN_FAILED,
+                Some(user_id),
+                Some(user_id),
+                Some("{\"method\":\"mfa\",\"reason\":\"invalid_code\"}"),
+            )
+            .await;
         return Err(ServerFnError::new("Code didn't match. Try again.").into());
     }
 
     session.remove(MFA_PENDING_KEY);
     session.set_longterm(remember_me);
     auth.login_user(user_id);
+    audit
+        .record(
+            &db.0,
+            auth::audit::USER_LOGIN_SUCCESS,
+            Some(user_id),
+            Some(user_id),
+            Some(&format!(
+                "{{\"method\":\"password+mfa\",\"remember_me\":{remember_me}}}"
+            )),
+        )
+        .await;
     Ok(LoginOutcome::LoggedIn)
 }
 
@@ -287,7 +514,7 @@ pub async fn begin_mfa_setup() -> Result<MfaSetupView> {
 
 /// Confirm enrollment by submitting a current TOTP code.
 #[cfg(feature = "mfa")]
-#[post("/api/user/mfa/confirm", auth: auth::Session, db: DbExtension)]
+#[post("/api/user/mfa/confirm", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn confirm_mfa_setup(code: String) -> Result<()> {
     let user = auth
         .current_user
@@ -296,7 +523,17 @@ pub async fn confirm_mfa_setup(code: String) -> Result<()> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in.").into());
     }
-    if auth::enable_mfa(&db.0, user.id as i64, &code).await? {
+    let user_id = user.id as i64;
+    if auth::enable_mfa(&db.0, user_id, &code).await? {
+        audit
+            .record(
+                &db.0,
+                auth::audit::USER_MFA_ENABLED,
+                Some(user_id),
+                Some(user_id),
+                None,
+            )
+            .await;
         Ok(())
     } else {
         Err(ServerFnError::new("That code didn't match. Try again.").into())
@@ -305,7 +542,7 @@ pub async fn confirm_mfa_setup(code: String) -> Result<()> {
 
 /// Turn off MFA for the current user. Wipes the secret and all recovery codes.
 #[cfg(feature = "mfa")]
-#[post("/api/user/mfa/disable", auth: auth::Session, db: DbExtension)]
+#[post("/api/user/mfa/disable", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn disable_mfa_for_user() -> Result<()> {
     let user = auth
         .current_user
@@ -314,7 +551,17 @@ pub async fn disable_mfa_for_user() -> Result<()> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in.").into());
     }
-    auth::disable_mfa(&db.0, user.id as i64).await?;
+    let user_id = user.id as i64;
+    auth::disable_mfa(&db.0, user_id).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::USER_MFA_DISABLED,
+            Some(user_id),
+            Some(user_id),
+            None,
+        )
+        .await;
     Ok(())
 }
 
@@ -424,6 +671,7 @@ pub(crate) async fn github_callback(
     axum::extract::State(clients): axum::extract::State<OAuthClients>,
     session: SessionStore,
     auth_session: auth::Session,
+    audit: AuditCtx,
     axum::extract::Query(params): axum::extract::Query<GithubCallbackParams>,
 ) -> Result<axum::response::Redirect, (axum::http::StatusCode, String)> {
     use oauth2::{AuthorizationCode, TokenResponse};
@@ -503,6 +751,15 @@ pub(crate) async fn github_callback(
         .map_err(|e| http_err(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     auth_session.login_user(user_id);
+    audit
+        .record(
+            &clients.db,
+            auth::audit::USER_LOGIN_SUCCESS,
+            Some(user_id),
+            Some(user_id),
+            Some("{\"method\":\"oauth\",\"provider\":\"github\"}"),
+        )
+        .await;
 
     Ok(axum::response::Redirect::to("/"))
 }
@@ -511,7 +768,9 @@ pub(crate) async fn github_callback(
 // Admin (Phase 11b)
 // ============================================================
 
-use crate::wire::{AccountView, AdminRoleDetail, AdminUserDetail, AdminUserSummary};
+use crate::wire::{
+    AccountView, AdminRoleDetail, AdminUserDetail, AdminUserSummary, AuditEventView, AuditQuery,
+};
 
 #[cfg(feature = "server")]
 async fn require_admin_perm(
@@ -591,22 +850,53 @@ pub async fn admin_get_user(user_id: i64) -> Result<Option<AdminUserDetail>> {
 }
 
 /// Replace a user's full role list (admin).
-#[post("/api/admin/users/roles", auth: auth::Session, db: DbExtension)]
+#[post("/api/admin/users/roles", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn admin_set_user_roles(
     user_id: i64,
     role_ids: Vec<i64>,
 ) -> Result<()> {
-    require_admin_perm(&auth, &db.0, "admin:users:write").await?;
+    let actor_id = require_admin_perm(&auth, &db.0, "admin:users:write").await?;
+    let before = auth::get_user_role_ids(&db.0, user_id).await.unwrap_or_default();
     auth::set_user_roles(&db.0, user_id, &role_ids).await?;
+    let details = format!(
+        "{{\"before\":{before:?},\"after\":{role_ids:?}}}"
+    );
+    audit
+        .record(
+            &db.0,
+            auth::audit::ADMIN_ROLES_CHANGED,
+            Some(actor_id),
+            Some(user_id),
+            Some(&details),
+        )
+        .await;
     Ok(())
 }
 
 /// Soft-delete a user (admin).
-#[post("/api/admin/users/delete", auth: auth::Session, db: DbExtension)]
+#[post("/api/admin/users/delete", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn admin_soft_delete_user(user_id: i64) -> Result<()> {
-    require_admin_perm(&auth, &db.0, "admin:users:delete").await?;
+    let actor_id = require_admin_perm(&auth, &db.0, "admin:users:delete").await?;
     auth::soft_delete_user(&db.0, user_id).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::ADMIN_USER_DELETED,
+            Some(actor_id),
+            Some(user_id),
+            None,
+        )
+        .await;
     Ok(())
+}
+
+/// Query the audit log (admin). Filtering happens server-side; the UI just
+/// posts whatever the user has typed.
+#[post("/api/admin/audit/query", auth: auth::Session, db: DbExtension)]
+pub async fn admin_query_audit_events(query: AuditQuery) -> Result<Vec<AuditEventView>> {
+    require_admin_perm(&auth, &db.0, "admin:audit:read").await?;
+    let events = auth::audit::query(&db.0, &query).await?;
+    Ok(events)
 }
 
 /// List all roles + their permission tokens.
@@ -667,7 +957,7 @@ pub async fn get_account_view() -> Result<AccountView> {
 }
 
 /// Set the current user's self-chosen display name.
-#[post("/api/account/display-name", auth: auth::Session, db: DbExtension)]
+#[post("/api/account/display-name", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn update_display_name(new_name: String) -> Result<()> {
     let user = auth
         .current_user
@@ -676,15 +966,25 @@ pub async fn update_display_name(new_name: String) -> Result<()> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in.").into());
     }
+    let id = user.id as i64;
     let trimmed = new_name.trim();
     let value = if trimmed.is_empty() { None } else { Some(trimmed) };
-    auth::update_display_name(&db.0, user.id as i64, value).await?;
+    auth::update_display_name(&db.0, id, value).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::ACCOUNT_DISPLAY_NAME_CHANGED,
+            Some(id),
+            Some(id),
+            None,
+        )
+        .await;
     Ok(())
 }
 
 /// Change the current user's password. Requires the current password
 /// (which prevents session-hijack-and-rotate).
-#[post("/api/account/password", auth: auth::Session, db: DbExtension)]
+#[post("/api/account/password", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn change_password(current: String, new_password: String) -> Result<()> {
     let user = auth
         .current_user
@@ -701,11 +1001,20 @@ pub async fn change_password(current: String, new_password: String) -> Result<()
         return Err(ServerFnError::new("Current password didn't match.").into());
     }
     auth::replace_password_hash(&db.0, id, &new_password).await?;
+    audit
+        .record(
+            &db.0,
+            auth::audit::ACCOUNT_PASSWORD_CHANGED,
+            Some(id),
+            Some(id),
+            None,
+        )
+        .await;
     Ok(())
 }
 
 /// Self-service soft-delete.
-#[post("/api/account/delete", auth: auth::Session, db: DbExtension)]
+#[post("/api/account/delete", auth: auth::Session, db: DbExtension, audit: AuditCtx)]
 pub async fn delete_my_account() -> Result<()> {
     let user = auth
         .current_user
@@ -716,6 +1025,16 @@ pub async fn delete_my_account() -> Result<()> {
     }
     let id = user.id as i64;
     auth::soft_delete_user(&db.0, id).await?;
+    // Record BEFORE logging out so the auth-session still has the user.
+    audit
+        .record(
+            &db.0,
+            auth::audit::ACCOUNT_SELF_DELETED,
+            Some(id),
+            Some(id),
+            None,
+        )
+        .await;
     auth.logout_user();
     Ok(())
 }

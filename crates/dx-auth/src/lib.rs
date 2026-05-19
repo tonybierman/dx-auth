@@ -47,7 +47,7 @@ pub mod config;
 mod install;
 
 #[cfg(feature = "server")]
-pub use config::{AuthConfig, AuthConfigBuilder};
+pub use config::{AuditConfig, AuthConfig, AuthConfigBuilder};
 
 #[cfg(all(feature = "server", feature = "ratelimit"))]
 pub use config::RateLimitConfig;

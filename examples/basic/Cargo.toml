@@ -38,5 +38,10 @@ server = [
     "dep:sqlx",
     "dep:axum_session_auth",
     "dx-auth/server",
+    "dx-auth/sqlite",
+    "dx-auth/oauth-github",
+    "dx-auth/mfa",
+    "dx-auth/mail",
+    "dx-auth/ratelimit",
 ]
 web = ["dioxus/web", "dep:dioxus-web"]

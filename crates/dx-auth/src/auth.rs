@@ -707,7 +707,7 @@ pub async fn consume_password_reset(
     db: &Pool,
     token: &str,
     new_password: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<i64> {
     if new_password.len() < 8 {
         anyhow::bail!("Password must be at least 8 characters.");
     }
@@ -738,7 +738,7 @@ pub async fn consume_password_reset(
         .await?;
     tx.commit().await?;
 
-    Ok(())
+    Ok(user_id)
 }
 
 fn hash_password(plaintext: &str) -> anyhow::Result<String> {
@@ -1151,4 +1151,205 @@ pub async fn find_unverified_user_id(
     .fetch_optional(db)
     .await?;
     Ok(row.map(|(id,)| id))
+}
+
+// ============================================================
+// Audit log (Phase 12)
+// ============================================================
+
+/// Library helpers for writing and reading the audit log. The set of
+/// emitted event types is open: callers pass arbitrary strings (we
+/// recommend a `domain.action.qualifier` scheme — see the constants below).
+pub mod audit {
+    use super::*;
+    use crate::wire::{AuditEventView, AuditQuery};
+
+    // -- Canonical event-type constants used by the library's own server fns. --
+    // Apps are free to emit their own taxonomies in addition.
+
+    pub const USER_LOGIN_SUCCESS: &str = "user.login.success";
+    pub const USER_LOGIN_FAILED:  &str = "user.login.failed";
+    pub const USER_LOGOUT:        &str = "user.logout";
+    pub const USER_SIGNUP:        &str = "user.signup";
+    pub const USER_EMAIL_VERIFIED: &str = "user.email_verified";
+    pub const USER_PWD_RESET_REQUESTED: &str = "user.password_reset.requested";
+    pub const USER_PWD_RESET_CONSUMED:  &str = "user.password_reset.consumed";
+    pub const USER_MFA_ENABLED:   &str = "user.mfa.enabled";
+    pub const USER_MFA_DISABLED:  &str = "user.mfa.disabled";
+
+    pub const ACCOUNT_PASSWORD_CHANGED:    &str = "account.password_changed";
+    pub const ACCOUNT_DISPLAY_NAME_CHANGED: &str = "account.display_name_changed";
+    pub const ACCOUNT_SELF_DELETED:        &str = "account.self_deleted";
+
+    pub const ADMIN_ROLES_CHANGED: &str = "admin.user.roles_changed";
+    pub const ADMIN_USER_DELETED:  &str = "admin.user.soft_deleted";
+
+    /// All fields are optional — pass `None` for whatever you don't have.
+    /// `details` should be a small JSON document (or `None`).
+    pub struct RecordInput<'a> {
+        pub event_type: &'a str,
+        pub actor_id: Option<i64>,
+        pub target_id: Option<i64>,
+        pub ip: Option<&'a str>,
+        pub user_agent: Option<&'a str>,
+        pub details: Option<&'a str>,
+    }
+
+    /// Insert one row. Logging failures are not fatal — the caller is
+    /// responsible for deciding whether to bubble or swallow the error.
+    pub async fn record(db: &Pool, input: RecordInput<'_>) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO audit_events \
+             (occurred_at, event_type, actor_id, target_id, ip, user_agent, details) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(unix_now())
+        .bind(input.event_type)
+        .bind(input.actor_id)
+        .bind(input.target_id)
+        .bind(input.ip)
+        .bind(input.user_agent)
+        .bind(input.details)
+        .execute(db)
+        .await?;
+        Ok(())
+    }
+
+    /// Convenience wrapper that logs+swallows errors. Use this from server
+    /// fns so an audit-write hiccup never fails a user's sign-in.
+    pub async fn record_or_log(db: &Pool, input: RecordInput<'_>) {
+        if let Err(err) = record(db, input).await {
+            eprintln!("[audit] WARN: failed to record event: {err}");
+        }
+    }
+
+    /// Read rows back, applying optional filters. Results are sorted
+    /// newest-first. `limit` is clamped to `[1, 500]`.
+    pub async fn query(db: &Pool, q: &AuditQuery) -> anyhow::Result<Vec<AuditEventView>> {
+        let limit = q.limit.clamp(1, 500);
+        let offset = q.offset.max(0);
+
+        // Event type can be exact or "prefix." (trailing dot signals
+        // prefix match via LIKE).
+        let (type_clause, type_pattern, type_is_filtered) =
+            if q.event_type.is_empty() {
+                ("".to_string(), String::new(), false)
+            } else if q.event_type.ends_with('.') {
+                (" AND e.event_type LIKE $1".to_string(),
+                 format!("{}%", q.event_type),
+                 true)
+            } else {
+                (" AND e.event_type = $1".to_string(),
+                 q.event_type.clone(),
+                 true)
+            };
+
+        // Build the parameter list incrementally so positional placeholders
+        // line up across sqlite/postgres ($N works on both).
+        let mut idx = if type_is_filtered { 2 } else { 1 };
+        let mut clauses = String::new();
+
+        let actor_idx = q.actor_id.map(|_| {
+            let i = idx;
+            idx += 1;
+            clauses.push_str(&format!(" AND e.actor_id = ${i}"));
+            i
+        });
+        let target_idx = q.target_id.map(|_| {
+            let i = idx;
+            idx += 1;
+            clauses.push_str(&format!(" AND e.target_id = ${i}"));
+            i
+        });
+        let since_idx = q.since.map(|_| {
+            let i = idx;
+            idx += 1;
+            clauses.push_str(&format!(" AND e.occurred_at >= ${i}"));
+            i
+        });
+        let until_idx = q.until.map(|_| {
+            let i = idx;
+            idx += 1;
+            clauses.push_str(&format!(" AND e.occurred_at <= ${i}"));
+            i
+        });
+        let limit_idx = idx;
+        let offset_idx = idx + 1;
+
+        let sql = format!(
+            "SELECT e.id, e.occurred_at, e.event_type, \
+                    e.actor_id, ua.email AS actor_email, \
+                    e.target_id, ut.email AS target_email, \
+                    e.ip, e.user_agent, e.details \
+             FROM audit_events e \
+             LEFT JOIN users ua ON ua.id = e.actor_id \
+             LEFT JOIN users ut ON ut.id = e.target_id \
+             WHERE 1 = 1{type_clause}{clauses} \
+             ORDER BY e.occurred_at DESC, e.id DESC \
+             LIMIT ${limit_idx} OFFSET ${offset_idx}",
+        );
+
+        let mut qb = sqlx::query_as::<_, AuditRow>(&sql);
+        if type_is_filtered {
+            qb = qb.bind(type_pattern);
+        }
+        if let (Some(_), Some(v)) = (actor_idx, q.actor_id) {
+            qb = qb.bind(v);
+        }
+        if let (Some(_), Some(v)) = (target_idx, q.target_id) {
+            qb = qb.bind(v);
+        }
+        if let (Some(_), Some(v)) = (since_idx, q.since) {
+            qb = qb.bind(v);
+        }
+        if let (Some(_), Some(v)) = (until_idx, q.until) {
+            qb = qb.bind(v);
+        }
+        qb = qb.bind(limit).bind(offset);
+
+        let rows = qb.fetch_all(db).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| AuditEventView {
+                id: r.id,
+                occurred_at: r.occurred_at,
+                event_type: r.event_type,
+                actor_id: r.actor_id,
+                actor_email: r.actor_email,
+                target_id: r.target_id,
+                target_email: r.target_email,
+                ip: r.ip,
+                user_agent: r.user_agent,
+                details: r.details,
+            })
+            .collect())
+    }
+
+    /// Delete rows older than `retention_days`. Returns the number of rows
+    /// deleted. A retention of 0 disables pruning (the call is a no-op).
+    pub async fn prune(db: &Pool, retention_days: u64) -> anyhow::Result<u64> {
+        if retention_days == 0 {
+            return Ok(0);
+        }
+        let cutoff = unix_now() - (retention_days as i64) * 86_400;
+        let res = sqlx::query("DELETE FROM audit_events WHERE occurred_at < $1")
+            .bind(cutoff)
+            .execute(db)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct AuditRow {
+        id: i64,
+        occurred_at: i64,
+        event_type: String,
+        actor_id: Option<i64>,
+        actor_email: Option<String>,
+        target_id: Option<i64>,
+        target_email: Option<String>,
+        ip: Option<String>,
+        user_agent: Option<String>,
+        details: Option<String>,
+    }
 }

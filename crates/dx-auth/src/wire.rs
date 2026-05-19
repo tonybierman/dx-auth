@@ -93,6 +93,42 @@ pub struct AdminRoleDetail {
     pub permissions: Vec<String>,
 }
 
+// ---- Audit log wire types (Phase 12) ----
+
+/// One row from the audit log. `details` is whatever JSON the emitter
+/// chose to attach (e.g. `{"method":"password","remember_me":true}`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AuditEventView {
+    pub id: i64,
+    pub occurred_at: i64,
+    pub event_type: String,
+    pub actor_id: Option<i64>,
+    pub actor_email: Option<String>,
+    pub target_id: Option<i64>,
+    pub target_email: Option<String>,
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub details: Option<String>,
+}
+
+/// Filter set the admin audit viewer sends to `admin_query_audit_events`.
+/// All fields are optional; defaults return the most-recent events across
+/// all users.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AuditQuery {
+    /// Match `event_type` exactly or as a `prefix.` if it ends with `.`.
+    /// Empty string means "all".
+    pub event_type: String,
+    pub actor_id: Option<i64>,
+    pub target_id: Option<i64>,
+    /// Inclusive lower bound (unix seconds). `None` = no lower bound.
+    pub since: Option<i64>,
+    /// Inclusive upper bound (unix seconds). `None` = no upper bound.
+    pub until: Option<i64>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 /// The current user's full account view (used by the AccountSettings UI).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AccountView {

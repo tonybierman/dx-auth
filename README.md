@@ -158,6 +158,57 @@ testable without a provider.
 | `IP`   | `127.0.0.1` | Wired by `dx serve`. |
 | `PORT` | `8080`      | Wired by `dx serve`. |
 
+## Audit log
+
+Every sign-in, sign-out, admin action, and account self-service write
+goes through the audit emitter and lands in the `audit_events` table.
+The admin UI [`dx_auth::ui::admin::AuditLog`] renders a filterable,
+paginated table on top of it — drop it onto an `/admin/audit` route in
+your app (the example does this).
+
+### Configuration
+
+Capture / retention is set via `AuthConfig::audit(AuditConfig { … })`:
+
+```rust
+use dx_auth::{AuditConfig, AuthConfig};
+
+let cfg = AuthConfig::builder(pool.clone(), mailer)
+    .audit(AuditConfig {
+        capture_ip: true,           // store the requester's IP
+        capture_user_agent: true,   // store the requester's UA
+        retention_days: 90,         // background task prunes older rows
+    })
+    .build();
+```
+
+Defaults: IP + UA both captured, 90-day retention. Set `retention_days
+= 0` to disable pruning entirely (the library writes; you handle
+cleanup).
+
+### Emitted events
+
+| Event type                        | When |
+| --------------------------------- | --- |
+| `user.login.success`              | Password (with or without MFA) or OAuth sign-in completes. `details` carries `method` + `remember_me`. |
+| `user.login.failed`               | Bad password, unverified email, or wrong MFA code. `details.reason` is `"invalid"`, `"unverified"`, or `"invalid_code"`. |
+| `user.logout`                     | `/api/user/logout` called. |
+| `user.signup`                     | Password account created. |
+| `user.email_verified`             | Verification token consumed. |
+| `user.password_reset.requested`   | Reset email sent (only fires when the address actually matches a user). |
+| `user.password_reset.consumed`    | Reset link followed and a new password set. |
+| `user.mfa.enabled`                | TOTP enrollment confirmed. |
+| `user.mfa.disabled`               | TOTP turned off. |
+| `account.display_name_changed`    | Self-service display name edit. |
+| `account.password_changed`        | Self-service password rotation. |
+| `account.self_deleted`            | User soft-deletes their own account. |
+| `admin.user.roles_changed`        | Admin replaces a user's role assignments. `details` carries `before` / `after` role-id arrays. |
+| `admin.user.soft_deleted`         | Admin soft-deletes a user. |
+
+Apps can emit their own events too — call
+`dx_auth::auth::audit::record(&pool, RecordInput { … }).await` with any
+`event_type` string and an optional JSON `details` blob.
+
 ## What the library ships vs what your app owns
 
 **Library owns:**
