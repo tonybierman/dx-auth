@@ -45,6 +45,39 @@
   margin-top: 0.25rem;
 }
 
+.login-error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--light, #fca5a5) var(--dark, #7f1d1d);
+  border-radius: 0.5rem;
+  background-color: var(--light, #fee2e2) var(--dark, rgba(127, 29, 29, 0.25));
+  color: var(--light, #7f1d1d) var(--dark, #fecaca);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.login-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--secondary-color-5);
+}
+
+.login-toggle-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--secondary-color-3);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+  cursor: pointer;
+}
+
+.login-toggle-button:hover {
+  color: var(--secondary-color-1);
+}
+
 .login-providers {
   display: flex;
   flex-direction: column;

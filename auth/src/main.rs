@@ -21,7 +21,7 @@ use components::button::{Button, ButtonVariant};
 use components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 use components::input::Input;
 use components::label::Label;
-use components::login_panel::{LoginPanel, LoginProvider, LoginSubmit};
+use components::login_panel::{LoginPanel, LoginProvider, LoginSubmit, SubmitKind};
 
 #[cfg(feature = "server")]
 mod auth;
@@ -82,6 +82,8 @@ fn main() {
         // Create an axum router that dioxus will attach the app to
         Ok(dioxus::server::router(app)
             .merge(oauth_router)
+            // Make the SqlitePool reachable from server fns via `axum::Extension`.
+            .layer(axum::Extension(db.clone()))
             .layer(
                 AuthLayer::new(Some(db.clone()))
                     .with_config(AuthConfig::<i64>::default().with_anonymous_user_id(Some(1))),
@@ -116,8 +118,22 @@ fn app() -> Element {
         .unwrap_or_default();
     let logged_in = current.is_authenticated;
 
-    // Placeholder until Phase 3 wires `login_with_password` / `register_with_password`.
-    let on_login_submit = move |_submission: LoginSubmit| {};
+    let mut auth_error = use_signal(String::new);
+
+    let on_login_submit = move |submission: LoginSubmit| {
+        auth_error.set(String::new());
+        let LoginSubmit { kind, email, password } = submission;
+        spawn(async move {
+            let result = match kind {
+                SubmitKind::SignIn => login_with_password(email, password).await,
+                SubmitKind::SignUp => register_with_password(email, password).await,
+            };
+            match result {
+                Ok(()) => profile.restart(),
+                Err(e) => auth_error.set(friendly_server_error(e)),
+            }
+        });
+    };
 
     rsx! {
         document::Stylesheet { href: THEME_CSS }
@@ -164,6 +180,10 @@ fn app() -> Element {
                     title: "Welcome back",
                     description: "Sign in to your workspace.",
                     forgot_href: "#",
+                    error: {
+                        let e = auth_error();
+                        if e.is_empty() { None } else { Some(e) }
+                    },
                     on_submit: on_login_submit,
                 }
             }
@@ -212,6 +232,17 @@ fn ProfileCard(profile: UserProfile) -> Element {
     }
 }
 
+/// Extract just the human-readable message from a server function error so the
+/// panel renders "Invalid email or password." instead of the verbose Display
+/// wrapper ("error running server function: <message> (details: ...)") that
+/// CapturedError reconstructs from the wire-transported string.
+fn friendly_server_error(e: dioxus::CapturedError) -> String {
+    let raw = e.to_string();
+    let rest = raw.strip_prefix("error running server function: ").unwrap_or(&raw);
+    let cleaned = rest.rsplit_once(" (details:").map(|(m, _)| m).unwrap_or(rest);
+    cleaned.to_string()
+}
+
 fn initials(name: &str) -> String {
     name.split_whitespace()
         .filter_map(|w| w.chars().next())
@@ -225,6 +256,29 @@ fn initials(name: &str) -> String {
 pub async fn logout() -> Result<()> {
     auth.logout_user();
     Ok(())
+}
+
+#[cfg(feature = "server")]
+type DbExtension = axum::Extension<sqlx::SqlitePool>;
+
+/// Create a new email/password account and log it in.
+#[post("/api/user/register-password", auth: auth::Session, db: DbExtension)]
+pub async fn register_with_password(email: String, password: String) -> Result<()> {
+    let user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    auth.login_user(user_id);
+    Ok(())
+}
+
+/// Log in with an existing email/password account.
+#[post("/api/user/login-password", auth: auth::Session, db: DbExtension)]
+pub async fn login_with_password(email: String, password: String) -> Result<()> {
+    match auth::verify_password_user(&db.0, &email, &password).await? {
+        Some(user_id) => {
+            auth.login_user(user_id);
+            Ok(())
+        }
+        None => Err(ServerFnError::new("Invalid email or password.").into()),
+    }
 }
 
 /// Returns the current user's public profile (including any third-party

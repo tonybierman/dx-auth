@@ -28,37 +28,76 @@ pub struct LoginProvider {
     pub icon_svg: Option<&'static str>,
 }
 
+/// Which mode the email/password form is in. Drives title, submit label, and whether the
+/// password-confirm field appears.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SubmitKind {
+    #[default]
+    SignIn,
+    SignUp,
+}
+
 /// Payload delivered to `LoginPanel`'s `on_submit` when the email/password form is submitted.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct LoginSubmit {
+    pub kind: SubmitKind,
     pub email: String,
     pub password: String,
 }
 
-/// A reusable "Sign in" card with an email + password form and an optional list of
-/// third-party providers below it. Drop-in: caller supplies a submit handler (or omits it),
-/// a provider list (possibly empty), and any wording overrides.
+/// A reusable "Sign in" card with an email + password form (toggleable into sign-up mode)
+/// and an optional list of third-party providers below it. Drop-in: caller supplies a submit
+/// handler (or omits it), a provider list (possibly empty), an optional error to render, and
+/// any wording overrides.
 #[component]
 pub fn LoginPanel(
     #[props(default)] providers: Vec<LoginProvider>,
     #[props(default = "Welcome back")] title: &'static str,
     #[props(default = "Sign in to your workspace.")] description: &'static str,
     #[props(default = "Sign in")] submit_label: &'static str,
+    #[props(default = "Create your account")] signup_title: &'static str,
+    #[props(default = "Start a new workspace.")] signup_description: &'static str,
+    #[props(default = "Create account")] signup_submit_label: &'static str,
     #[props(default = "you@example.com")] email_placeholder: &'static str,
     #[props(default = "••••••••")] password_placeholder: &'static str,
     #[props(default)] forgot_href: Option<&'static str>,
     #[props(default = true)] show_email_password: bool,
+    #[props(default)] error: Option<String>,
     on_submit: Option<EventHandler<LoginSubmit>>,
 ) -> Element {
     let mut email = use_signal(String::new);
     let mut password = use_signal(String::new);
+    let mut password_confirm = use_signal(String::new);
+    let mut mode = use_signal(|| SubmitKind::SignIn);
+    let mut local_error = use_signal(String::new);
+
+    let is_signup = mode() == SubmitKind::SignUp;
+    let effective_title = if is_signup { signup_title } else { title };
+    let effective_description = if is_signup { signup_description } else { description };
+    let effective_submit_label = if is_signup { signup_submit_label } else { submit_label };
+    let toggle_prompt = if is_signup {
+        "Already have an account?"
+    } else {
+        "Don't have an account?"
+    };
+    let toggle_action_label = if is_signup { "Sign in" } else { "Sign up" };
+
+    // Prefer the inline (client-side) error; fall back to the parent-supplied one.
+    let displayed_error = {
+        let local = local_error.read().clone();
+        if !local.is_empty() {
+            Some(local)
+        } else {
+            error.clone().filter(|e| !e.is_empty())
+        }
+    };
 
     rsx! {
         document::Stylesheet { href: LOGIN_PANEL_CSS }
         Card { class: Styles::login_panel,
             CardHeader {
-                CardTitle { "{title}" }
-                CardDescription { "{description}" }
+                CardTitle { "{effective_title}" }
+                CardDescription { "{effective_description}" }
             }
 
             if show_email_password {
@@ -66,10 +105,20 @@ pub fn LoginPanel(
                     class: Styles::login_form,
                     onsubmit: move |evt| {
                         evt.prevent_default();
+                        let email_val = email.read().clone();
+                        let password_val = password.read().clone();
+
+                        if is_signup && password_val != password_confirm.read().clone() {
+                            local_error.set("Passwords don't match.".to_string());
+                            return;
+                        }
+                        local_error.set(String::new());
+
                         if let Some(handler) = on_submit.as_ref() {
                             handler.call(LoginSubmit {
-                                email: email.read().clone(),
-                                password: password.read().clone(),
+                                kind: mode(),
+                                email: email_val,
+                                password: password_val,
                             });
                         }
                     },
@@ -98,11 +147,13 @@ pub fn LoginPanel(
                                 class: Styles::login_label,
                                 "Password"
                             }
-                            if let Some(href) = forgot_href {
-                                a {
-                                    class: Styles::login_forgot,
-                                    href: "{href}",
-                                    "Forgot?"
+                            if !is_signup {
+                                if let Some(href) = forgot_href {
+                                    a {
+                                        class: Styles::login_forgot,
+                                        href: "{href}",
+                                        "Forgot?"
+                                    }
                                 }
                             }
                         }
@@ -110,10 +161,37 @@ pub fn LoginPanel(
                             id: "login-password",
                             name: "password",
                             r#type: "password",
-                            autocomplete: "current-password",
+                            autocomplete: if is_signup { "new-password" } else { "current-password" },
                             placeholder: "{password_placeholder}",
                             value: "{password}",
                             oninput: move |evt: FormEvent| password.set(evt.value()),
+                        }
+                    }
+
+                    if is_signup {
+                        div { class: Styles::login_field,
+                            Label {
+                                html_for: "login-password-confirm",
+                                class: Styles::login_label,
+                                "Confirm password"
+                            }
+                            Input {
+                                id: "login-password-confirm",
+                                name: "password_confirm",
+                                r#type: "password",
+                                autocomplete: "new-password",
+                                placeholder: "{password_placeholder}",
+                                value: "{password_confirm}",
+                                oninput: move |evt: FormEvent| password_confirm.set(evt.value()),
+                            }
+                        }
+                    }
+
+                    if let Some(msg) = displayed_error {
+                        div {
+                            class: Styles::login_error,
+                            role: "alert",
+                            "{msg}"
                         }
                     }
 
@@ -121,7 +199,22 @@ pub fn LoginPanel(
                         variant: ButtonVariant::Primary,
                         r#type: "submit",
                         class: Styles::login_submit,
-                        "{submit_label}"
+                        "{effective_submit_label}"
+                    }
+
+                    div { class: Styles::login_toggle,
+                        span { "{toggle_prompt} " }
+                        button {
+                            class: Styles::login_toggle_button,
+                            r#type: "button",
+                            onclick: move |_| {
+                                let next = if is_signup { SubmitKind::SignIn } else { SubmitKind::SignUp };
+                                mode.set(next);
+                                local_error.set(String::new());
+                                password_confirm.set(String::new());
+                            },
+                            "{toggle_action_label}"
+                        }
                     }
                 }
             }

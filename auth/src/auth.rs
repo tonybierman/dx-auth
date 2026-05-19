@@ -208,3 +208,94 @@ pub(crate) async fn seed_default_permissions(
     .await?;
     Ok(())
 }
+
+/// Create a new email/password account.
+///
+/// Returns the new user's id on success. The error is a user-facing message
+/// (server fn can surface it verbatim) — we deliberately avoid distinguishing
+/// "no such user" from "wrong password" anywhere to prevent enumeration.
+pub(crate) async fn create_password_user(
+    db: &SqlitePool,
+    email: &str,
+    password: &str,
+) -> anyhow::Result<i64> {
+    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
+    use argon2::Argon2;
+
+    let email = email.trim();
+    if email.is_empty() || !email.contains('@') {
+        anyhow::bail!("Please enter a valid email address.");
+    }
+    if password.len() < 8 {
+        anyhow::bail!("Password must be at least 8 characters.");
+    }
+
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("hashing failed: {e}"))?
+        .to_string();
+
+    let username = email.split('@').next().unwrap_or(email);
+
+    let inserted: Result<(i64,), sqlx::Error> = sqlx::query_as(
+        "INSERT INTO users (anonymous, username, email, password_hash) \
+         VALUES (false, ?, ?, ?) RETURNING id",
+    )
+    .bind(username)
+    .bind(email)
+    .bind(&hash)
+    .fetch_one(db)
+    .await;
+
+    let (user_id,) = match inserted {
+        Ok(row) => row,
+        Err(sqlx::Error::Database(dberr)) if dberr.is_unique_violation() => {
+            anyhow::bail!("An account with that email already exists.");
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    seed_default_permissions(db, user_id).await?;
+    Ok(user_id)
+}
+
+/// Verify an email/password pair.
+///
+/// `Ok(Some(id))` on success, `Ok(None)` on any failure (no such user, wrong
+/// password, malformed stored hash). Errors that bubble up are reserved for
+/// genuinely unexpected database issues.
+pub(crate) async fn verify_password_user(
+    db: &SqlitePool,
+    email: &str,
+    password: &str,
+) -> anyhow::Result<Option<i64>> {
+    use argon2::password_hash::{PasswordHash, PasswordVerifier};
+    use argon2::Argon2;
+
+    let row: Option<(i64, String)> = sqlx::query_as(
+        "SELECT id, password_hash FROM users \
+         WHERE LOWER(email) = LOWER(?) AND password_hash IS NOT NULL \
+         LIMIT 1",
+    )
+    .bind(email.trim())
+    .fetch_optional(db)
+    .await?;
+
+    let Some((user_id, stored_hash)) = row else {
+        return Ok(None);
+    };
+
+    let Ok(parsed) = PasswordHash::new(&stored_hash) else {
+        return Ok(None);
+    };
+
+    if Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok()
+    {
+        Ok(Some(user_id))
+    } else {
+        Ok(None)
+    }
+}
