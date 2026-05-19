@@ -1,0 +1,61 @@
+/* Force the dx-components dark palette regardless of OS preference. Loads after
+   dx-components-theme.css, so this rule wins by source order over its
+   @media (prefers-color-scheme: light) override. */
+html {
+  --dark: initial;
+  --light: ;
+  color-scheme: dark;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 22rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.app-debug {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.profile-card-identity {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.profile-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.profile-card-meta {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.profile-card-meta a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+  word-break: break-all;
+}

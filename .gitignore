@@ -1,0 +1,17 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Local sqlite DB created at first `dx serve`.
+auth/auth.db
+auth/auth.db-journal
+auth/auth.db-wal
+auth/auth.db-shm
+
+# Dev-mode email fallback (Phase 5).
+auth/emails/
+
+# Editor / OS junk
+.DS_Store
+.idea/
+.vscode/
