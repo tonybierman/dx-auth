@@ -48,23 +48,36 @@ use crate::ui::login_panel::LoginProvider;
 
 #[derive(Clone, Copy)]
 struct OAuthProvidersCtx {
-    providers: Memo<Vec<LoginProvider>>,
+    providers: Signal<Vec<LoginProvider>>,
 }
 
 /// Fetches the OAuth provider list once at the app root and shares it
 /// with descendants via context. See the [module docs](self) for the full
 /// pattern.
+///
+/// Implementation note: uses `use_hook(|| spawn(...))` to fire the fetch
+/// exactly once on mount and write the result to a `Signal`. We avoided
+/// `use_resource` + `use_memo` here because that composition had the
+/// LoginPanel `if !providers.is_empty()` branch stay collapsed on the
+/// client after hydration in some configurations — the Memo would
+/// recompute when the resource resolved, but the subscriber re-render
+/// didn't always fire reliably for descendants reading through context.
+/// A bare `Signal` with a manual spawn is one less layer of indirection
+/// and renders the provider buttons every time.
 #[component]
 pub fn OAuthProvidersProvider(children: Element) -> Element {
-    let resource = use_resource(available_providers);
-    let providers = use_memo(move || -> Vec<LoginProvider> {
-        resource()
-            .and_then(|r| r.ok())
-            .unwrap_or_default()
-            .into_iter()
-            .map(LoginProvider::from)
-            .collect()
+    let mut providers = use_signal(Vec::<LoginProvider>::new);
+
+    use_hook(|| {
+        spawn(async move {
+            if let Ok(list) = available_providers().await {
+                let mapped: Vec<LoginProvider> =
+                    list.into_iter().map(LoginProvider::from).collect();
+                providers.set(mapped);
+            }
+        });
     });
+
     use_context_provider(|| OAuthProvidersCtx { providers });
     rsx! { {children} }
 }
@@ -76,6 +89,6 @@ pub fn OAuthProvidersProvider(children: Element) -> Element {
 /// scope panics.
 pub fn use_oauth_providers() -> Vec<LoginProvider> {
     try_consume_context::<OAuthProvidersCtx>()
-        .map(|ctx| (ctx.providers)())
+        .map(|ctx| ctx.providers.read().clone())
         .unwrap_or_default()
 }
