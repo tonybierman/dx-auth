@@ -76,6 +76,14 @@ struct PermissionsCtx {
 
 /// Establishes a single shared profile resource for descendants. Place it
 /// once near the top of your app (e.g. wrapping `Router::<Route> {}`).
+///
+/// Also pins the catalog widget stylesheets used by the drop-in auth UI
+/// ([`super::LoginPanel`], [`super::ForgotPassword`], etc.) to the document
+/// head, so they survive component re-mount cycles (sign in → navigate
+/// away → log out → re-mount). The catalog widgets emit their own
+/// `document::Stylesheet` declarations too, but a component-local
+/// emission disappears from `<head>` when the component unmounts; pinning
+/// from the root provider keeps the links in place for the whole session.
 #[component]
 pub fn PermissionsProvider(children: Element) -> Element {
     let profile = use_resource(|| async { get_current_user_profile().await });
@@ -92,7 +100,10 @@ pub fn PermissionsProvider(children: Element) -> Element {
 
     use_context_provider(|| PermissionsCtx { profile, set, phase });
 
-    rsx! { {children} }
+    rsx! {
+        super::AuthStylesheets {}
+        {children}
+    }
 }
 
 /// Handle returned by [`use_permissions`]. `Copy`, so it's cheap to capture

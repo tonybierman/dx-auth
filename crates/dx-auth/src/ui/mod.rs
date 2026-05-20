@@ -13,6 +13,7 @@ pub mod login_panel;
 
 pub mod account;
 pub mod admin;
+pub mod auth_stylesheets;
 #[cfg(feature = "mail")]
 pub mod forgot_password;
 pub mod oauth_providers;
@@ -24,6 +25,7 @@ pub mod verify_email;
 
 pub use account::AccountSettings;
 pub use admin::{AdminRoleEditor, AdminRoleList, AdminUserDetail, AdminUserList, AuditLog};
+pub use auth_stylesheets::AuthStylesheets;
 #[cfg(feature = "mail")]
 pub use forgot_password::ForgotPassword;
 pub use login_panel::{LoginPanel, LoginProvider, LoginSubmit, SubmitKind};

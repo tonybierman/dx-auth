@@ -591,3 +591,16 @@ that column — two `foo@x.com` / `foo@y.com` accounts both get
 `username = "foo"`. If your domain has a "lookup by username" path
 (e.g. invite-by-username), prefer email-based lookup for any feature
 where selecting the wrong user matters.
+
+### Wrap the router in `PermissionsProvider` even if you don't gate anything
+
+The provider does more than supply the `use_permissions()` context — it
+also pins the catalog widget stylesheets used by `LoginPanel`,
+`ForgotPassword`, `ResetPassword`, and `VerifyEmail` to the document
+head via [`dx_auth::ui::AuthStylesheets`]. Without that pin, the link
+tags emitted from inside the widgets disappear from `<head>` when the
+widget unmounts (sign in → navigate away → log out → re-mount the
+login screen), and the post-logout login screen renders unstyled. If
+your app embeds `LoginPanel` without using `PermissionsProvider` (e.g. a
+marketing page), render `dx_auth::ui::AuthStylesheets {}` directly at
+the root instead.
