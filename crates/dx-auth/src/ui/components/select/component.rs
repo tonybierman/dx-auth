@@ -7,7 +7,14 @@ use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
 pub use dioxus_primitives::select::SelectGroup;
 
-#[css_module("/src/ui/components/select/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const SELECT_CSS: Asset = asset!(
+    "/src/ui/components/select/dx-select.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/select/dx-select.css")]
 struct Styles;
 
 #[component]
@@ -16,6 +23,7 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: SELECT_CSS }
         select::Select {
             value: props.value,
             default_value: props.default_value,
@@ -51,6 +59,7 @@ pub fn SelectMulti<T: Clone + PartialEq + 'static>(props: SelectMultiProps<T>) -
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: SELECT_CSS }
         select::SelectMulti {
             values: props.values,
             default_values: props.default_values,
@@ -86,6 +95,7 @@ pub fn SelectGroupLabel(props: SelectGroupLabelProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: SELECT_CSS }
         select::SelectGroupLabel {
             id: props.id,
             attributes: merged,
@@ -100,6 +110,7 @@ pub fn SelectOption<T: Clone + PartialEq + 'static>(props: SelectOptionProps<T>)
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: SELECT_CSS }
         select::SelectOption::<T> {
             value: props.value,
             text_value: props.text_value,

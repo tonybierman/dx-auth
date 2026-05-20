@@ -1,6 +1,17 @@
 use dioxus::prelude::*;
 
-#[css_module("/src/ui/components/card/style.css")]
+// Same file the `#[css_module]` below points at; declared as a separate `Asset` so we can
+// render a `document::Stylesheet` from every component in the module. The css_module
+// macro's own link-injection path uses a process-wide `OnceLock` that only fires once per
+// process — fine for fully client-rendered apps, but on an SSR server only the first
+// request gets the `<link>` tag. Emitting the Stylesheet from rsx! makes every render
+// reassert the link; the browser de-dupes by href so the multiple emissions are harmless.
+const CARD_CSS: Asset = asset!(
+    "/src/ui/components/card/dx-card.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/card/dx-card.css")]
 struct Styles;
 
 #[component]
@@ -9,6 +20,7 @@ pub fn Card(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card,
             "data-slot": "card",
@@ -24,6 +36,7 @@ pub fn CardHeader(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_header,
             "data-slot": "card-header",
@@ -39,6 +52,7 @@ pub fn CardTitle(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_title,
             "data-slot": "card-title",
@@ -54,6 +68,7 @@ pub fn CardDescription(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_description,
             "data-slot": "card-description",
@@ -69,6 +84,7 @@ pub fn CardAction(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_action,
             "data-slot": "card-action",
@@ -84,6 +100,7 @@ pub fn CardContent(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_content,
             "data-slot": "card-content",
@@ -99,6 +116,7 @@ pub fn CardFooter(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: CARD_CSS }
         div {
             class: Styles::dx_card_footer,
             "data-slot": "card-footer",

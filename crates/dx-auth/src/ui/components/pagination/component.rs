@@ -1,6 +1,14 @@
 use dioxus::prelude::*;
 use dioxus_icons::lucide::{ChevronLeft, ChevronRight, Ellipsis};
-#[css_module("/src/ui/components/pagination/style.css")]
+
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const PAGINATION_CSS: Asset = asset!(
+    "/src/ui/components/pagination/dx-pagination.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/pagination/dx-pagination.css")]
 struct Styles;
 
 #[derive(Copy, Clone, PartialEq, Default)]
@@ -42,6 +50,7 @@ pub fn Pagination(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: PAGINATION_CSS }
         nav {
             class: Styles::dx_pagination,
             "data-slot": "pagination",
@@ -59,6 +68,7 @@ pub fn PaginationContent(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: PAGINATION_CSS }
         ul {
             class: Styles::dx_pagination_content,
             "data-slot": "pagination-content",
@@ -104,6 +114,7 @@ pub fn PaginationLink(props: PaginationLinkProps) -> Element {
     let aria_current = if props.is_active { Some("page") } else { None };
     let data_kind = props.data_kind.map(|kind| kind.attr());
     rsx! {
+        document::Stylesheet { href: PAGINATION_CSS }
         a {
             class: Styles::dx_pagination_link,
             "data-slot": "pagination-link",
@@ -185,6 +196,7 @@ pub fn PaginationEllipsis(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: PAGINATION_CSS }
         span {
             class: Styles::dx_pagination_ellipsis,
             "data-slot": "pagination-ellipsis",

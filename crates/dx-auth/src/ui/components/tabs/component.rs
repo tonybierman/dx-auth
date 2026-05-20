@@ -2,7 +2,14 @@ use dioxus::prelude::*;
 use dioxus_primitives::tabs::{self, TabContentProps, TabListProps, TabTriggerProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
-#[css_module("/src/ui/components/tabs/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const TABS_CSS: Asset = asset!(
+    "/src/ui/components/tabs/dx-tabs.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/tabs/dx-tabs.css")]
 struct Styles;
 
 /// The props for the [`Tabs`] component.
@@ -76,6 +83,7 @@ pub fn Tabs(props: TabsProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: TABS_CSS }
         tabs::Tabs {
             value: props.value,
             default_value: props.default_value,
@@ -97,6 +105,7 @@ pub fn TabList(props: TabListProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: TABS_CSS }
         tabs::TabList { attributes: merged, {props.children} }
     }
 }
@@ -113,6 +122,7 @@ pub fn TabTrigger(props: TabTriggerProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: TABS_CSS }
         tabs::TabTrigger {
             class: None,
             id: props.id,
@@ -138,6 +148,7 @@ pub fn TabContent(props: TabContentProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: TABS_CSS }
         tabs::TabContent {
             class: None,
             value: props.value,

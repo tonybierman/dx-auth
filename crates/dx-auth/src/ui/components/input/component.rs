@@ -1,5 +1,13 @@
 use dioxus::prelude::*;
-#[css_module("/src/ui/components/input/style.css")]
+
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const INPUT_CSS: Asset = asset!(
+    "/src/ui/components/input/dx-input.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/input/dx-input.css")]
 struct Styles;
 
 #[component]
@@ -29,6 +37,7 @@ pub fn Input(
     children: Element,
 ) -> Element {
     rsx! {
+        document::Stylesheet { href: INPUT_CSS }
         input {
             class: Styles::dx_input,
             oninput: move |e| _ = oninput.map(|callback| callback(e)),

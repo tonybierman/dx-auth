@@ -2,7 +2,14 @@ use dioxus::prelude::*;
 use dioxus_primitives::dioxus_attributes::attributes;
 use dioxus_primitives::merge_attributes;
 
-#[css_module("/src/ui/components/button/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const BUTTON_CSS: Asset = asset!(
+    "/src/ui/components/button/dx-button.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/button/dx-button.css")]
 struct Styles;
 
 #[derive(Copy, Clone, PartialEq, Default)]
@@ -80,6 +87,7 @@ pub fn Button(
     let merged = merge_attributes(vec![base, attributes]);
 
     rsx! {
+        document::Stylesheet { href: BUTTON_CSS }
         button {
             onclick: move |event| {
                 if let Some(f) = &onclick {

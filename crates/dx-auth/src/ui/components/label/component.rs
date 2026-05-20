@@ -1,11 +1,20 @@
 use dioxus::prelude::*;
 use dioxus_primitives::label::{self, LabelProps};
-#[css_module("/src/ui/components/label/style.css")]
+
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const LABEL_CSS: Asset = asset!(
+    "/src/ui/components/label/dx-label.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/label/dx-label.css")]
 struct Styles;
 
 #[component]
 pub fn Label(props: LabelProps) -> Element {
     rsx! {
+        document::Stylesheet { href: LABEL_CSS }
         label::Label {
             class: Styles::dx_label,
             html_for: props.html_for,

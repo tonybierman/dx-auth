@@ -3,7 +3,14 @@ use dioxus_primitives::dioxus_attributes::attributes;
 use dioxus_primitives::avatar::{self, AvatarState};
 use dioxus_primitives::merge_attributes;
 
-#[css_module("/src/ui/components/avatar/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const AVATAR_CSS: Asset = asset!(
+    "/src/ui/components/avatar/dx-avatar.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/avatar/dx-avatar.css")]
 struct Styles;
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -83,6 +90,7 @@ pub fn Avatar(props: AvatarProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: AVATAR_CSS }
         avatar::Avatar {
             on_load: props.on_load,
             on_error: props.on_error,
@@ -116,6 +124,7 @@ pub fn AvatarImage(props: AvatarImageProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: AVATAR_CSS }
         avatar::AvatarImage {
             id: props.id,
             src: props.src,
@@ -141,6 +150,7 @@ pub fn AvatarFallback(props: AvatarFallbackProps) -> Element {
     let merged = merge_attributes(vec![base, props.attributes]);
 
     rsx! {
+        document::Stylesheet { href: AVATAR_CSS }
         avatar::AvatarFallback {
             attributes: merged,
             {props.children}

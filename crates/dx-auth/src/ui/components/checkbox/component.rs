@@ -2,12 +2,20 @@ use dioxus::prelude::*;
 use dioxus_icons::lucide::Check;
 use dioxus_primitives::checkbox::{self, CheckboxProps};
 
-#[css_module("/src/ui/components/checkbox/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const CHECKBOX_CSS: Asset = asset!(
+    "/src/ui/components/checkbox/dx-checkbox.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/checkbox/dx-checkbox.css")]
 struct Styles;
 
 #[component]
 pub fn Checkbox(props: CheckboxProps) -> Element {
     rsx! {
+        document::Stylesheet { href: CHECKBOX_CSS }
         checkbox::Checkbox {
             class: Styles::dx_checkbox,
             checked: props.checked,

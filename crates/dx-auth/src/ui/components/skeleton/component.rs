@@ -1,7 +1,14 @@
 use dioxus::prelude::*;
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
-#[css_module("/src/ui/components/skeleton/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const SKELETON_CSS: Asset = asset!(
+    "/src/ui/components/skeleton/dx-skeleton.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/skeleton/dx-skeleton.css")]
 struct Styles;
 
 #[component]
@@ -12,6 +19,7 @@ pub fn Skeleton(#[props(extends=GlobalAttributes)] attributes: Vec<Attribute>) -
     let merged = merge_attributes(vec![base, attributes]);
 
     rsx! {
+        document::Stylesheet { href: SKELETON_CSS }
         div { ..merged }
     }
 }

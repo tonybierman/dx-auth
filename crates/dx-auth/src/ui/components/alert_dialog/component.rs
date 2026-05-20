@@ -4,12 +4,20 @@ use dioxus_primitives::alert_dialog::{
     AlertDialogDescriptionProps, AlertDialogRootProps, AlertDialogTitleProps,
 };
 
-#[css_module("/src/ui/components/alert_dialog/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const ALERT_DIALOG_CSS: Asset = asset!(
+    "/src/ui/components/alert_dialog/dx-alert-dialog.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/alert_dialog/dx-alert-dialog.css")]
 struct Styles;
 
 #[component]
 pub fn AlertDialog(props: AlertDialogRootProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogRoot {
             class: Styles::dx_alert_dialog_backdrop,
             id: props.id,
@@ -28,6 +36,7 @@ pub fn AlertDialog(props: AlertDialogRootProps) -> Element {
 #[component]
 pub fn AlertDialogTitle(props: AlertDialogTitleProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogTitle {
             class: Styles::dx_alert_dialog_title,
             attributes: props.attributes,
@@ -39,6 +48,7 @@ pub fn AlertDialogTitle(props: AlertDialogTitleProps) -> Element {
 #[component]
 pub fn AlertDialogDescription(props: AlertDialogDescriptionProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogDescription {
             class: Styles::dx_alert_dialog_description,
             attributes: props.attributes,
@@ -50,6 +60,7 @@ pub fn AlertDialogDescription(props: AlertDialogDescriptionProps) -> Element {
 #[component]
 pub fn AlertDialogActions(props: AlertDialogActionsProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogActions { class: Styles::dx_alert_dialog_actions, attributes: props.attributes, {props.children} }
     }
 }
@@ -57,6 +68,7 @@ pub fn AlertDialogActions(props: AlertDialogActionsProps) -> Element {
 #[component]
 pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogCancel {
             on_click: props.on_click,
             class: Styles::dx_alert_dialog_cancel,
@@ -69,6 +81,7 @@ pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
 #[component]
 pub fn AlertDialogAction(props: AlertDialogActionProps) -> Element {
     rsx! {
+        document::Stylesheet { href: ALERT_DIALOG_CSS }
         alert_dialog::AlertDialogAction {
             class: Styles::dx_alert_dialog_action,
             on_click: props.on_click,

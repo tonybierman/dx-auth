@@ -148,6 +148,43 @@ fn AdminUsersPage() -> Element {
 }
 ```
 
+For routes that just need "user must be signed in" (no role / scope
+check), use `RequireAuth`. Two shapes are supported — pick whichever
+matches the surrounding UX.
+
+Redirect on deny (matches `RequirePermission`):
+
+```rust
+#[component]
+fn DashboardPage() -> Element {
+    rsx! {
+        RequireAuth { redirect_to: "/login".to_string(),
+            DashboardBody {}
+        }
+    }
+}
+```
+
+Inline fallback (render a `Login` panel in place of the gated page —
+avoids the redirect flash and is more robust than a `use_effect`-based
+navigation under hydration):
+
+```rust
+#[component]
+fn DashboardPage() -> Element {
+    rsx! {
+        RequireAuth { fallback: rsx! { Login {} },
+            DashboardBody {}
+        }
+    }
+}
+```
+
+`RequirePermission` with no `token`/`any_of`/`all_of` props builds an
+empty policy that fails closed — so it won't admit even authenticated
+users. Reach for `RequireAuth` for the plain login gate;
+`RequirePermission` for role-aware checks.
+
 ### Imperative checks via the hook
 
 `use_permissions()` returns a `Copy` handle for event handlers and
@@ -426,3 +463,91 @@ Apps can emit their own events too — call
 - Migrations are checksummed by sqlx; if you edit a `.sql` file after
   it's been applied, sqlx refuses to start until you wipe the DB or add
   a new migration file with the fix-up.
+
+## Drop-in auth routes
+
+`LoginPanel` is one of four ready-made screen components. The other three
+sit at the email-driven side flows linked from the login card. Wire them
+into the consumer's `Route` enum:
+
+```rust
+use dx_auth::ui::{ForgotPassword, ResetPassword, VerifyEmail};
+
+#[derive(Routable, Clone, PartialEq)]
+pub enum Route {
+    #[route("/login")]
+    Login {},
+    #[route("/auth/forgot")]
+    ForgotPassword {},
+    #[route("/auth/reset?:token")]
+    ResetPassword { token: String },
+    #[route("/auth/verify?:token")]
+    VerifyEmail { token: String },
+    // ... your domain routes
+}
+```
+
+Paths above match `LoginPanel`'s default `forgot_href` and the URLs that
+the `mail` backend bakes into outgoing verification / reset emails. If
+you mount them somewhere else, override `LoginPanel { forgot_href: "..." }`
+and configure the mailer's link templates to match.
+
+Each component is anonymous-accessible (no `RequireAuth` wrapping) and
+calls the corresponding server fn under the hood:
+
+- `ForgotPassword` → `dx_auth::server::request_password_reset_email`.
+  Always shows a neutral "if an account exists…" message — the server fn
+  is user-enumeration-safe and returns `Ok(())` regardless.
+- `ResetPassword { token }` → `dx_auth::server::reset_password`.
+  Confirms passwords match client-side; surfaces friendly errors via
+  `friendly_server_error`.
+- `VerifyEmail { token }` → `dx_auth::server::verify_email`. Fires on
+  mount, then renders one of three states (pending / verified /
+  expired-or-used).
+
+Each accepts overridable text props (`title`, `description`, `back_href`)
+if you want to localize the copy.
+
+## Common pitfalls
+
+These came out of an early consumer migration. None are blocking, but
+they're easier to plan around if you know about them.
+
+### `user.id` is `i32` but the session is `i64`
+
+`dx_auth::auth::User` declares `pub id: i32`, but the session type is
+`AuthSession<User, i64, _, _>` and the SQLite users table column is
+`INTEGER` (64-bit). Anywhere you read the ID for use with i64 columns or
+domain models, cast at the boundary:
+
+```rust
+let user_id = auth.current_user.as_ref()
+    .filter(|u| !u.anonymous)
+    .ok_or_else(|| ServerFnError::new("not logged in"))?
+    .id as i64;
+```
+
+### First signup gets the `admin` role automatically
+
+The library's bootstrap path grants the `admin` role to the first user
+that signs up (or to whoever matches `DX_AUTH_BOOTSTRAP_ADMIN_EMAIL` if
+set). Harmless if you don't expose an admin UI, but worth knowing when
+you see `admin:users:read` etc. on a freshly-signed-up account.
+
+### The `mail` feature changes signup-success semantics
+
+With `mail` on, `register_with_password` returns
+`LoginOutcome::EmailUnverified` and writes a verification email. Without
+`mail`, it returns `LoginOutcome::LoggedIn` directly. Your login UI's
+`on_submit` should handle both branches so the same code path works
+whichever feature set you ship — `examples/basic`'s `on_login_submit`
+covers all three outcomes (`LoggedIn` / `EmailUnverified` / `MfaRequired`).
+
+### `username` is derived from the email prefix and is NOT unique
+
+`auth::ensure_user` fills `users.username` from the email prefix on
+signup (or the OAuth provider's login). Nothing enforces uniqueness on
+that column — two `foo@x.com` / `foo@y.com` accounts both get
+`username = "foo"`. If your domain has a "lookup by username" path
+(e.g. invite-by-username), prefer email-based lookup for any feature
+where selecting the wrong user matters.

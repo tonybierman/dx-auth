@@ -1,7 +1,14 @@
 use dioxus::prelude::*;
 use dioxus_icons::lucide::BadgeCheck;
 
-#[css_module("/src/ui/components/badge/style.css")]
+// See comment in card/component.rs: explicit Stylesheet emission so SSR always
+// reasserts the link tag.
+const BADGE_CSS: Asset = asset!(
+    "/src/ui/components/badge/dx-badge.css",
+    AssetOptions::css_module()
+);
+
+#[css_module("/src/ui/components/badge/dx-badge.css")]
 struct Styles;
 
 #[derive(Copy, Clone, PartialEq, Default)]
@@ -54,6 +61,7 @@ pub fn Badge(props: BadgeProps) -> Element {
 #[component]
 fn BadgeElement(props: BadgeProps) -> Element {
     rsx! {
+        document::Stylesheet { href: BADGE_CSS }
         span {
             class: Styles::dx_badge,
             "data-style": props.variant.class(),
