@@ -56,7 +56,7 @@ fn main() {
         // dx-auth owns the schema for `users`, `oauth_accounts`, `roles`,
         // `audit_events`, `api_keys`, ... — they're embedded in the dx-auth
         // crate. App-specific migrations (none yet) would run after this.
-        dx_auth::MIGRATOR.run(&pool).await?;
+        dx_auth::migrator().run(&pool).await?;
 
         let mailer = dx_auth::Mailer::from_env()?;
         println!("[startup] mailer backend: {}", mailer.describe());
