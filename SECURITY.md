@@ -75,22 +75,39 @@ It is **not** intended to defend against:
   the first signup matching that email is auto-promoted, after which
   the env var no longer grants privileges to anyone else.
 
-### Dependency hygiene (CI-enforced, advisory)
+### Dependency hygiene (CI-enforced)
 
 Two GitHub Actions workflows run security tooling:
 
 **Per push / PR — `.github/workflows/ci.yml`**
 
-- `cargo audit` — RustSec advisory database against `Cargo.lock`.
-- `cargo deny check` — license / source / bans policy
-  (see [`deny.toml`](deny.toml)).
-- `cargo machete` — unused dependency detection.
-- `gitleaks` — secret scan over the diff and history.
-- `cargo clippy` with security-leaning lints
+Gating (a failure blocks the merge):
+
+- `cargo clippy` — two passes. `--all-targets` with the default
+  warning set, plus `--lib` with security-leaning lints layered on
   (`unwrap_used`, `expect_used`, `panic`, `indexing_slicing`,
-  `integer_arithmetic`).
+  `arithmetic_side_effects`). The strict set is scoped to the lib
+  target only — `unwrap()` is idiomatic in tests.
+- `cargo deny check bans licenses sources` — deterministic policy
+  enforcement against `Cargo.lock`. Advisories are deliberately
+  excluded here (see the `audit` job below) so an upstream-controlled
+  moving target doesn't block PRs.
+- `gitleaks detect --source . --redact` — secret scan of the full
+  repo + history. Invoked via the official binary, not the
+  marketplace action (the action's license check is flaky for
+  personal accounts). Allowlist lives in [`.gitleaks.toml`](.gitleaks.toml).
 - `cargo test` and a `cargo check` matrix across realistic feature
   combinations.
+
+Advisory (`continue-on-error: true` — a failure shows red on the job
+but doesn't block):
+
+- `cargo audit` — RustSec advisory database against `Cargo.lock`.
+  Owned here because advisories are upstream-controlled; CI shouldn't
+  fall over every time a fresh CVE lands while a fix is being
+  triaged.
+- `cargo machete` — unused dependency detection.
+- `cargo fmt --check` — formatting.
 
 **Nightly — `.github/workflows/nightly.yml`**
 
@@ -100,16 +117,15 @@ Two GitHub Actions workflows run security tooling:
 - `cargo geiger` — counts `unsafe` reachable in the dep tree.
 - `trufflehog` — full-history secret scan with `--only-verified`.
 
-All security jobs are currently `continue-on-error: true` and run as
-advisory. They are flipped to gating individually as each becomes
-clean.
-
 ### Policy files
 
 - [`deny.toml`](deny.toml) — license allow-list with per-entry
   rationale; explicit `allow-git` per source (no wildcard org trust);
   `yanked = "deny"`; `allow-wildcard-paths = true` for internal
   workspace members only.
+- [`.gitleaks.toml`](.gitleaks.toml) — extends the upstream default
+  ruleset with an allowlist for one recognisable test-fixture hex
+  literal used to exercise email-template width checks.
 - [`.gitignore`](.gitignore) — excludes dev SQLite databases, the
   dev-fallback `emails/` directory, and `.env` files.
 
@@ -130,7 +146,11 @@ clean.
 - The development-mode email backend writes `.eml` files to disk for
   inspection — never enable it in production (the `MAIL_*` env vars
   drive the production SMTP backend instead).
-- An advisory (`RUSTSEC-2023-0071`, `rsa 0.9.10`) is reachable only via
-  `sqlx-macros-core`'s compile-time backend support; it is not
-  reachable from a deployed SQLite-only or Postgres-only build. Triage
-  is in progress.
+- Two open RustSec advisories surface in the `cargo audit` job:
+  - `RUSTSEC-2023-0071` (`rsa 0.9.10`) — reachable only via
+    `sqlx-macros-core`'s compile-time backend support; not reachable
+    from a deployed SQLite-only or Postgres-only build.
+  - `RUSTSEC-2026-0009` (`time` pre-0.3.47) — affects RFC 2822 date
+    parsing of user-controlled input. `time` is pulled in
+    transitively via several Dioxus components.
+  Triage for both is in progress.
