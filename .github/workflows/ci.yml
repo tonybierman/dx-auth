@@ -153,10 +153,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: bnjbvr/cargo-machete@main
 
-  # Secret scan on the diff for every PR, and full repo on push to main.
-  # Free for personal/public repos; orgs need a GITLEAKS_LICENSE secret.
-  # Gating: a hit here means a credential is about to land in git
-  # history — that's worth blocking the merge to investigate.
+  # Secret scan on the full repo. Gating: a hit here means a credential
+  # is about to land in git history — that's worth blocking the merge.
+  #
+  # We invoke the gitleaks binary directly rather than gitleaks-action.
+  # The action does a license check by calling GitHub's user API; for
+  # personal accounts the call is intermittently flaky ("Bad credentials")
+  # and the action then fails closed demanding a paid license. Direct
+  # invocation avoids that entirely.
   secrets:
     name: gitleaks
     runs-on: ubuntu-latest
@@ -164,6 +168,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=8.21.2
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+      - run: gitleaks detect --source . --redact --verbose --no-banner
