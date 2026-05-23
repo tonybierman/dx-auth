@@ -65,7 +65,7 @@ fn main() {
         let builder = match dx_auth::oauth::github::GithubProvider::from_env()? {
             Some(gh) => {
                 println!("[startup] GitHub OAuth: enabled");
-                builder.oauth_provider(gh)
+                builder.oauth_provider(gh)?
             }
             None => {
                 println!(
@@ -76,7 +76,7 @@ fn main() {
             }
         };
 
-        let cfg = builder.build();
+        let cfg = builder.build()?;
 
         dx_auth::install(dioxus::server::router(app), cfg).await
     });

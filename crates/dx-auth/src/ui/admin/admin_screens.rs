@@ -34,7 +34,7 @@ struct Styles;
 pub fn AdminUserList(on_select: EventHandler<i64>) -> Element {
     let mut page = use_signal(|| 0i64);
     let users = use_resource(use_reactive!(|page| async move {
-        admin_list_users(100, page * 100).await
+        admin_list_users(100, page().saturating_mul(100)).await
     }));
     let roles = use_resource(|| async { admin_list_roles().await });
     let role_names: std::collections::HashMap<i64, String> = roles()
@@ -75,7 +75,12 @@ pub fn AdminUserList(on_select: EventHandler<i64>) -> Element {
                         render_item: {
                             let role_names = role_names.clone();
                             move |idx: usize| {
-                                let user = rows_signal.read()[idx].clone();
+                                // `VirtualList` only renders idx in `0..count`,
+                                // but use `.get()` so a stale snapshot can't
+                                // panic during an in-flight re-render.
+                                let Some(user) = rows_signal.read().get(idx).cloned() else {
+                                    return rsx! { div {} };
+                                };
                                 let role_names = role_names.clone();
                                 rsx! { AdminUserRow { user, role_names, on_select } }
                             }

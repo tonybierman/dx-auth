@@ -77,9 +77,8 @@ jobs:
       - run: cargo fmt --all -- --check
 
   clippy:
-    name: cargo clippy (advisory)
+    name: cargo clippy
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -88,17 +87,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci
-      # Security-leaning lints in addition to the default warning set.
-      # Panics / unwraps / slicing in request paths are real DoS findings
-      # for an auth crate.
+      # Two passes:
+      #   1. `--all-targets` with the default warning set, so tests and
+      #      examples still go through clippy.
+      #   2. `--lib` with security-leaning lints layered on. These lints
+      #      (unwrap/expect/panic/indexing/arithmetic) are real DoS
+      #      findings in an auth library's request paths — but they're
+      #      noisy in test code where unwrap is idiomatic, so we scope
+      #      them to the lib target only.
+      - run: cargo clippy --package dx-auth --all-targets -- -D warnings
       - run: |
-          cargo clippy --package dx-auth --all-targets -- \
+          cargo clippy --package dx-auth --lib -- \
             -D warnings \
             -W clippy::unwrap_used \
             -W clippy::expect_used \
             -W clippy::panic \
             -W clippy::indexing_slicing \
-            -W clippy::integer_arithmetic
+            -W clippy::arithmetic_side_effects
 
   # RustSec advisory database check against Cargo.lock. New advisories
   # land outside our PRs, so the nightly workflow also runs this.

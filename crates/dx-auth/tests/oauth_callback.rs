@@ -109,6 +109,7 @@ async fn boot(mock_token_url: &str, profile: NormalizedProfile) -> TestApp {
 
     let cfg = AuthConfig::builder(pool.clone(), mailer)
         .oauth_provider(provider)
+        .unwrap()
         // Disable rate limiting + audit prune — extra noise for these tests.
         .rate_limit(None)
         .audit(AuditConfig {
@@ -116,7 +117,8 @@ async fn boot(mock_token_url: &str, profile: NormalizedProfile) -> TestApp {
             capture_user_agent: false,
             retention_days: 0,
         })
-        .build();
+        .build()
+        .unwrap();
 
     let router: Router = dx_auth::install(Router::new(), cfg).await.expect("install");
 

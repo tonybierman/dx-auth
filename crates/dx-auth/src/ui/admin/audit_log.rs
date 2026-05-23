@@ -179,7 +179,9 @@ fn EventTable(rows: Vec<AuditEventView>) -> Element {
                 estimate_size: |_idx| 56,
                 class: Styles::data_virtual,
                 render_item: move |idx: usize| {
-                    let row = rows_signal.read()[idx].clone();
+                    let Some(row) = rows_signal.read().get(idx).cloned() else {
+                        return rsx! { div {} };
+                    };
                     rsx! { EventRow { row } }
                 },
             }

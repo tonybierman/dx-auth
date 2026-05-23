@@ -172,7 +172,12 @@ pub async fn logout() -> Result<()> {
 /// authenticated=false default when the caller is anonymous.
 #[get("/api/user/profile", auth: auth::Session, db: DbExtension)]
 pub async fn get_current_user_profile() -> Result<UserProfile> {
-    let user = auth.current_user.unwrap();
+    // `axum_session_auth` always populates `current_user` (anonymous users
+    // get the guest row, not None) — but treat a missing value as an
+    // unauthenticated request rather than panicking.
+    let user = auth
+        .current_user
+        .ok_or_else(|| ServerFnError::new("Not signed in."))?;
     let permissions = if user.anonymous {
         Vec::new()
     } else {
@@ -304,7 +309,7 @@ pub async fn login_with_password(
             #[cfg(feature = "mfa")]
             {
                 if auth::user_has_mfa(&db.0, user_id).await? {
-                    let expires_at = unix_now_seconds() + MFA_PENDING_TTL_SECS;
+                    let expires_at = unix_now_seconds().saturating_add(MFA_PENDING_TTL_SECS);
                     session.set(MFA_PENDING_KEY, (user_id, expires_at, remember_me));
                     return Ok(LoginOutcome::MfaRequired);
                 }
@@ -738,7 +743,7 @@ pub async fn revoke_api_token(token_id: i64) -> Result<()> {
 /// enough that a heavier dep isn't worth pulling in.
 #[cfg(feature = "tokens")]
 fn json_string(raw: &str) -> String {
-    let mut out = String::with_capacity(raw.len() + 2);
+    let mut out = String::with_capacity(raw.len().saturating_add(2));
     out.push('"');
     for ch in raw.chars() {
         match ch {
@@ -979,7 +984,7 @@ pub async fn admin_delete_role(role_id: i64) -> Result<()> {
 
 #[cfg(feature = "server")]
 fn json_str(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
+    let mut out = String::with_capacity(s.len().saturating_add(2));
     out.push('"');
     for c in s.chars() {
         match c {

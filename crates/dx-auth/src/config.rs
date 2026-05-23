@@ -148,18 +148,20 @@ impl AuthConfigBuilder {
     /// ```rust,ignore
     /// let mut builder = AuthConfig::builder(pool, mailer);
     /// if let Some(gh) = GithubProvider::from_env()? {
-    ///     builder = builder.oauth_provider(gh);
+    ///     builder = builder.oauth_provider(gh)?;
     /// }
     /// ```
+    ///
+    /// Returns `Err` if lazy initialisation of the registry's HTTP client
+    /// fails (in practice only when the TLS backend can't initialise).
     #[cfg(feature = "_oauth-core")]
-    pub fn oauth_provider<P: OAuthProvider>(mut self, provider: P) -> Self {
+    pub fn oauth_provider<P: OAuthProvider>(mut self, provider: P) -> anyhow::Result<Self> {
         let reg = match self.oauth.take() {
             Some(r) => r,
-            None => OAuthRegistry::new(self.pool.clone())
-                .expect("default reqwest::Client builds with redirect policy only"),
+            None => OAuthRegistry::new(self.pool.clone())?,
         };
         self.oauth = Some(reg.with_provider(provider));
-        self
+        Ok(self)
     }
 
     /// Short-term session lifespan. Sessions created without "Remember me"
@@ -207,13 +209,16 @@ impl AuthConfigBuilder {
 
     /// Consume the builder and produce the [`AuthConfig`] ready to hand to
     /// [`crate::install`].
-    pub fn build(self) -> AuthConfig {
+    ///
+    /// Returns `Err` only if lazy initialisation of the OAuth HTTP client
+    /// fails (in practice only when the TLS backend can't initialise).
+    pub fn build(self) -> anyhow::Result<AuthConfig> {
         #[cfg(feature = "_oauth-core")]
-        let oauth = self.oauth.unwrap_or_else(|| {
-            OAuthRegistry::new(self.pool.clone())
-                .expect("default reqwest::Client builds with redirect policy only")
-        });
-        AuthConfig {
+        let oauth = match self.oauth {
+            Some(reg) => reg,
+            None => OAuthRegistry::new(self.pool.clone())?,
+        };
+        Ok(AuthConfig {
             pool: self.pool,
             #[cfg(feature = "mail")]
             mailer: self.mailer,
@@ -226,6 +231,6 @@ impl AuthConfigBuilder {
             rate_limit: self.rate_limit,
             session_table_name: self.session_table_name,
             audit: self.audit,
-        }
+        })
     }
 }

@@ -50,7 +50,7 @@ pub struct SqlPermissionTokens {
 #[async_trait]
 impl Authentication<User, i64, Pool> for User {
     async fn load_user(userid: i64, pool: Option<&Pool>) -> Result<User, anyhow::Error> {
-        let db = pool.unwrap();
+        let db = pool.ok_or_else(|| anyhow::anyhow!("load_user called without a database pool"))?;
 
         #[derive(sqlx::FromRow, Clone)]
         struct SqlUser {
@@ -69,8 +69,7 @@ impl Authentication<User, i64, Pool> for User {
         )
         .bind(userid)
         .fetch_one(db)
-        .await
-        .unwrap();
+        .await?;
 
         // Merge tokens from direct user_permissions rows AND tokens inherited
         // from any role the user has been assigned. The UNION dedupes.
@@ -83,8 +82,7 @@ impl Authentication<User, i64, Pool> for User {
         )
         .bind(userid)
         .fetch_all(db)
-        .await
-        .unwrap();
+        .await?;
 
         Ok(User {
             id: sqluser.id,
@@ -736,7 +734,7 @@ pub async fn request_password_reset(db: &Pool, email: &str) -> anyhow::Result<Op
     rng.fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
 
-    let expires_at = unix_now() + 3600;
+    let expires_at = unix_now().saturating_add(3600);
 
     sqlx::query(
         "INSERT INTO password_reset_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
@@ -877,7 +875,7 @@ pub async fn issue_verification_token(db: &Pool, user_id: i64) -> anyhow::Result
     rng.fill_bytes(&mut bytes);
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
 
-    let expires_at = unix_now() + 24 * 3600;
+    let expires_at = unix_now().saturating_add(24 * 3600);
 
     sqlx::query(
         "INSERT INTO email_verification_tokens (token, user_id, expires_at) VALUES ($1, $2, $3)",
@@ -1180,7 +1178,13 @@ fn generate_recovery_code<R: argon2::password_hash::rand_core::RngCore>(rng: &mu
     rng.fill_bytes(&mut bytes);
     bytes
         .iter()
-        .map(|b| ALPHABET[*b as usize % ALPHABET.len()] as char)
+        .map(|b| {
+            // checked_rem with a non-zero const divisor; `unwrap_or` and
+            // `.get()` cover the "can't happen" arms so we don't have to
+            // unwrap/panic on a path the math actually guarantees.
+            let i = (*b as usize).checked_rem(ALPHABET.len()).unwrap_or(0);
+            ALPHABET.get(i).copied().unwrap_or(b'A') as char
+        })
         .collect()
 }
 
@@ -1328,35 +1332,35 @@ pub mod audit {
 
         // Build the parameter list incrementally so positional placeholders
         // line up across sqlite/postgres ($N works on both).
-        let mut idx = if type_is_filtered { 2 } else { 1 };
+        let mut idx: i32 = if type_is_filtered { 2 } else { 1 };
         let mut clauses = String::new();
 
         let actor_idx = q.actor_id.map(|_| {
             let i = idx;
-            idx += 1;
+            idx = idx.saturating_add(1);
             clauses.push_str(&format!(" AND e.actor_id = ${i}"));
             i
         });
         let target_idx = q.target_id.map(|_| {
             let i = idx;
-            idx += 1;
+            idx = idx.saturating_add(1);
             clauses.push_str(&format!(" AND e.target_id = ${i}"));
             i
         });
         let since_idx = q.since.map(|_| {
             let i = idx;
-            idx += 1;
+            idx = idx.saturating_add(1);
             clauses.push_str(&format!(" AND e.occurred_at >= ${i}"));
             i
         });
         let until_idx = q.until.map(|_| {
             let i = idx;
-            idx += 1;
+            idx = idx.saturating_add(1);
             clauses.push_str(&format!(" AND e.occurred_at <= ${i}"));
             i
         });
         let limit_idx = idx;
-        let offset_idx = idx + 1;
+        let offset_idx = idx.saturating_add(1);
 
         let sql = format!(
             "SELECT e.id, e.occurred_at, e.event_type, \
@@ -1423,7 +1427,8 @@ pub mod audit {
         if retention_days == 0 {
             return Ok(0);
         }
-        let cutoff = unix_now() - (retention_days as i64) * 86_400;
+        let seconds = (retention_days as i64).saturating_mul(86_400);
+        let cutoff = unix_now().saturating_sub(seconds);
         let res = sqlx::query("DELETE FROM audit_events WHERE occurred_at < $1")
             .bind(cutoff)
             .execute(db)

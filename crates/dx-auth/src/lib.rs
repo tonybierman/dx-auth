@@ -26,7 +26,7 @@
 //!
 //!     let cfg = AuthConfig::builder(pool.clone(), Mailer::from_env()?)
 //!         .oauth(oauth)
-//!         .build();
+//!         .build()?;
 //!
 //!     dx_auth::install(dioxus::server::router(app), cfg).await
 //! });

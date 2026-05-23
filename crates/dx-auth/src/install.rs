@@ -76,14 +76,19 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
     // 2) Rate limit (compiled out without `ratelimit`).
     #[cfg(feature = "ratelimit")]
     if let Some(rl) = cfg.rate_limit.as_ref() {
-        let governor_config = std::sync::Arc::new(
-            tower_governor::governor::GovernorConfigBuilder::default()
-                .key_extractor(LenientIpKeyExtractor)
-                .per_second(rl.per_second)
-                .burst_size(rl.burst)
-                .finish()
-                .expect("valid governor config"),
-        );
+        let governor_config = tower_governor::governor::GovernorConfigBuilder::default()
+            .key_extractor(LenientIpKeyExtractor)
+            .per_second(rl.per_second)
+            .burst_size(rl.burst)
+            .finish()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "invalid rate-limit config (per_second={}, burst={})",
+                    rl.per_second,
+                    rl.burst,
+                )
+            })?;
+        let governor_config = std::sync::Arc::new(governor_config);
         let limiter = governor_config.limiter().clone();
         tokio::spawn(async move {
             loop {

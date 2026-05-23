@@ -55,7 +55,9 @@ pub fn AdminRoleList(on_select: EventHandler<i64>, on_new: EventHandler<()>) -> 
                         estimate_size: |_idx| 56,
                         class: Styles::data_virtual,
                         render_item: move |idx: usize| {
-                            let role = rows_signal.read()[idx].clone();
+                            let Some(role) = rows_signal.read().get(idx).cloned() else {
+                                return rsx! { div {} };
+                            };
                             rsx! { AdminRoleRow { role, on_select } }
                         },
                     }
