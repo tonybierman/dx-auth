@@ -64,7 +64,7 @@ jobs:
         with:
           shared-key: nightly
       - run: cargo install --locked cargo-geiger
-      - run: cargo geiger --package dx-auth --all-features
+      - run: cargo geiger --workspace --all-features
 
   # Full-history secret scan. Slower than the per-PR gitleaks step in
   # ci.yml — that one scans the diff, this one re-scans every commit so a
