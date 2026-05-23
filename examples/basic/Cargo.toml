@@ -9,14 +9,14 @@ license = "MIT OR Apache-2.0"
 dioxus = { version = "0.7.9", features = ["fullstack", "router"] }
 dioxus-web = { version = "0.7.9", features = ["hydrate"], optional = true }
 
-# The library — pulled in with the UI components and every capability
+# The Dioxus adapter — pulled in with the UI components and every capability
 # the example surfaces (MFA, mail, OAuth, ratelimit). These capability
 # features have to be on for BOTH the wasm/client and server builds so
-# the dioxus `#[post]` macro generates the client-side stub. Bare
-# `dep:` crates (totp-rs, lettre, oauth2, reqwest, tower_governor) only
-# get used from inside `#[cfg(feature = "server")]` blocks in dx-auth,
-# so they're inert on the wasm side.
-dx-auth = { path = "../../crates/dx-auth", default-features = false, features = [
+# the dioxus `#[post]` macro generates the client-side stub. The actual
+# backend crates (totp-rs, lettre, oauth2, reqwest, tower_governor) live in
+# the `arium` engine, which arium-dioxus only pulls in under its `server`
+# feature on non-wasm targets, so they're inert on the wasm side.
+arium-dioxus = { path = "../../crates/arium-dioxus", default-features = false, features = [
     "ui",
     "mfa",
     "mail",
@@ -47,8 +47,8 @@ server = [
     "dep:axum",
     "dep:sqlx",
     "dep:axum_session_auth",
-    "dx-auth/server",
-    "dx-auth/sqlite",
+    "arium-dioxus/server",
+    "arium-dioxus/sqlite",
 ]
 web = ["dioxus/web", "dep:dioxus-web"]
 

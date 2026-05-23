@@ -2,14 +2,14 @@
 
 ## Reporting a vulnerability
 
-If you believe you've found a security issue in `dx-auth`, please report
+If you believe you've found a security issue in `arium`, please report
 it privately. Public issues on the tracker should be reserved for
 non-security bug reports.
 
 - **Preferred:** open a GitHub Security Advisory at
-  <https://github.com/tonybierman/dx-auth/security/advisories/new> — this
+  <https://github.com/tonybierman/arium/security/advisories/new> — this
   keeps the report private until a fix lands.
-- **Fallback:** email `tonybierman@gmail.com` with `[dx-auth security]`
+- **Fallback:** email `tonybierman@gmail.com` with `[arium security]`
   in the subject.
 
 This is a personal project with no SLA; expect best-effort response
@@ -29,7 +29,7 @@ The crate is pre-1.0 and ships from `main`. Only the latest commit on
 
 ## Threat model
 
-`dx-auth` is a reusable authentication and authorization library for
+`arium` is a reusable authentication and authorization library for
 Dioxus fullstack apps. It is intended to defend against:
 
 - credential stuffing and brute-force sign-in (per-IP rate limiting),
@@ -38,7 +38,7 @@ Dioxus fullstack apps. It is intended to defend against:
 - session theft over the wire (cookie flags + TLS expected at the
   reverse proxy),
 - OAuth callback CSRF (`state` verification stored in the session and
-  checked on callback — see `crates/dx-auth/src/oauth.rs`),
+  checked on callback — see `crates/arium/src/oauth.rs`),
 - TOTP recovery-code reuse (single-use enforced at the DB layer:
   `mfa_recovery_codes.used_at`),
 - SQL injection (queries built with SQLx parameter binding — no string

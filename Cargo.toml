@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/dx-auth", "examples/basic"]
+members = ["crates/arium-wire", "crates/arium", "crates/arium-dioxus", "examples/basic"]
 resolver = "3"

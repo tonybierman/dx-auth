@@ -1,0 +1,15 @@
+[package]
+name = "arium-wire"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Framework-agnostic wire types shared across arium auth crates."
+license = "MIT OR Apache-2.0"
+authors = ["Tony Bierman <tonybierman@gmail.com>"]
+repository = "https://github.com/tonybierman/arium"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0.225", features = ["derive"] }

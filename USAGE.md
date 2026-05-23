@@ -1,6 +1,6 @@
-# Using dx-auth
+# Using arium-dioxus
 
-A walkthrough of integrating `dx-auth` into a Dioxus 0.7 fullstack app.
+A walkthrough of integrating `arium-dioxus` into a Dioxus 0.7 fullstack app.
 The companion to this document is `examples/basic/` — every pattern here
 is exercised there end-to-end.
 
@@ -16,12 +16,12 @@ dioxus = { version = "0.7.9", features = ["fullstack", "router"] }
 # be on for BOTH the wasm/client and server builds so the
 # `#[cfg(feature = "...")]`-gated server-fn declarations are visible to
 # the dioxus macro on both sides. The actual server-only crates inside
-# dx-auth are already target-gated to non-wasm.
+# arium-dioxus are already target-gated to non-wasm.
 #
 # IMPORTANT: `sqlite` (or `postgres`) is server-only — keep it OUT of
 # the default feature list and gate it behind your own `server`
 # feature. See "Common pitfalls" below.
-dx-auth = { version = "0.1", default-features = false, features = [
+arium-dioxus = { version = "0.1", default-features = false, features = [
   "ui",
   "mail",
   "oauth-github",
@@ -40,16 +40,16 @@ web     = ["dioxus/web"]
 server  = [
   "dioxus/server",
   "dep:axum", "dep:tokio", "dep:sqlx",
-  "dx-auth/server",
-  "dx-auth/sqlite",    # <-- gated behind YOUR server feature
+  "arium-dioxus/server",
+  "arium-dioxus/sqlite",    # <-- gated behind YOUR server feature
 ]
 ```
 
 ### 2. Server setup
 
-`dx_auth::migrator()` ships the schema (`users`, `oauth_accounts`,
+`arium_dioxus::migrator()` ships the schema (`users`, `oauth_accounts`,
 `roles`, `audit_events`, `api_keys`, …); compose it with your own
-migrator if you have one. `dx_auth::install` layers session + auth onto
+migrator if you have one. `arium_dioxus::install` layers session + auth onto
 whatever `axum::Router` you hand it — merge any custom routes (SSE,
 websockets, REST) into the router *before* calling `install` so they
 inherit the session middleware.
@@ -64,12 +64,12 @@ fn main() {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .connect_with("sqlite://./app.db?mode=rwc".parse()?)
             .await?;
-        dx_auth::migrator().run(&pool).await?;
+        arium_dioxus::migrator().run(&pool).await?;
         // your own migrator runs here if you have one
 
-        let mailer = dx_auth::Mailer::from_env()?;
-        let mut builder = dx_auth::AuthConfig::builder(pool, mailer);
-        if let Some(gh) = dx_auth::oauth::github::GithubProvider::from_env()? {
+        let mailer = arium_dioxus::Mailer::from_env()?;
+        let mut builder = arium_dioxus::AuthConfig::builder(pool, mailer);
+        if let Some(gh) = arium_dioxus::oauth::github::GithubProvider::from_env()? {
             builder = builder.oauth_provider(gh);
         }
 
@@ -78,7 +78,7 @@ fn main() {
             // .layer(axum::Extension(my_app_state))
             ;
 
-        dx_auth::install(router, builder.build()).await
+        arium_dioxus::install(router, builder.build()).await
     });
 }
 ```
@@ -92,7 +92,7 @@ auth screens stay styled across mount cycles). Wrap that in
 app root and survives login/logout transitions.
 
 ```rust
-use dx_auth::ui::{OAuthProvidersProvider, PermissionsProvider};
+use arium_dioxus::ui::{OAuthProvidersProvider, PermissionsProvider};
 
 #[component]
 fn app() -> Element {
@@ -119,11 +119,11 @@ round-trip entirely with `DX_AUTH_SKIP_EMAIL_VERIFICATION=1 dx serve`.
 
 ## Drop-in auth routes
 
-`dx-auth` ships ready-made screen components for every email- or
+`arium-dioxus` ships ready-made screen components for every email- or
 session-driven flow. Wire them into your `Route` enum:
 
 ```rust
-use dx_auth::ui::{
+use arium_dioxus::ui::{
     ApiTokens, ForgotPassword, LoginPanel, MfaChallenge, MfaSetup, ResetPassword, VerifyEmail,
 };
 
@@ -165,9 +165,9 @@ props for copy customization.
 login screen has to dispatch on all three:
 
 ```rust
-use dx_auth::ui::{LoginPanel, LoginSubmit, MfaChallenge, SubmitKind, use_oauth_providers, use_permissions};
-use dx_auth::{LoginOutcome, friendly_server_error};
-use dx_auth::server::{cancel_mfa_challenge, login_with_password, register_with_password};
+use arium_dioxus::ui::{LoginPanel, LoginSubmit, MfaChallenge, SubmitKind, use_oauth_providers, use_permissions};
+use arium_dioxus::{LoginOutcome, friendly_server_error};
+use arium_dioxus::server::{cancel_mfa_challenge, login_with_password, register_with_password};
 
 #[component]
 fn Home() -> Element {
@@ -223,11 +223,11 @@ itself.
 
 ### Adding a new provider
 
-Implement `dx_auth::oauth::OAuthProvider` (id/secret/URLs, scopes, and
+Implement `arium_dioxus::oauth::OAuthProvider` (id/secret/URLs, scopes, and
 a `fetch_profile` that hits the user-info endpoint and returns a
 `NormalizedProfile`). Add a `oauth-<name>` Cargo feature that enables
 the internal `_oauth-core` feature, drop a module under
-`crates/dx-auth/src/oauth/<name>.rs` mirroring `github.rs`, then
+`crates/arium/src/oauth/<name>.rs` mirroring `github.rs`, then
 register it on the builder:
 
 ```rust
@@ -261,12 +261,12 @@ have to be revoked and replaced.
 
 The library doesn't ship a Bearer-token axum extractor — consumers do
 the lookup themselves, which keeps the auth path explicit. Hash the
-incoming bearer string with [`dx_auth::auth::tokens::hash_api_token`]
+incoming bearer string with [`arium_dioxus::auth::tokens::hash_api_token`]
 and look it up:
 
 ```rust
 use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
-use dx_auth::auth::tokens::hash_api_token;
+use arium_dioxus::auth::tokens::hash_api_token;
 
 pub async fn require_api_token(
     db: axum::Extension<sqlx::SqlitePool>,
@@ -308,22 +308,22 @@ pub async fn require_api_token(
 
 Bumping `last_used_at` is the consumer's responsibility — the library
 only writes it via the consumer-supplied middleware above (or whatever
-equivalent path you use). `dx_auth::ui::ApiTokens` reads it back so
+equivalent path you use). `arium_dioxus::ui::ApiTokens` reads it back so
 users can spot stale tokens.
 
 ## Writing server fns that read the current user
 
-`dx_auth::auth::Session` is an `axum_session_auth::AuthSession`
+`arium_dioxus::auth::Session` is an `axum_session_auth::AuthSession`
 extractor. Use it as the auth attribute on your own server fns, then
 read `auth.current_user`:
 
 ```rust
-#[post("/api/cards/new", auth: dx_auth::auth::Session)]
+#[post("/api/cards/new", auth: arium_dioxus::auth::Session)]
 pub async fn create_card(board_id: i64, /* … */) -> Result<Card, ServerFnError> {
     #[cfg(feature = "server")]
     {
         let user = auth.current_user.as_ref()
-            .filter(|u| !u.anonymous)            // dx-auth has a Guest user (id=1)
+            .filter(|u| !u.anonymous)            // arium-dioxus has a Guest user (id=1)
             .ok_or_else(|| ServerFnError::new("not logged in"))?;
         let user_id = user.id as i64;            // see pitfall below
         // ... domain authz + DB work ...
@@ -338,13 +338,13 @@ parameter:
 pub async fn events_handler(
     Path(board_id): Path<i64>,
     State(state): State<AppState>,
-    auth: dx_auth::auth::Session,
+    auth: arium_dioxus::auth::Session,
 ) -> Result<Sse<...>, StatusCode> { /* … */ }
 ```
 
 ## Permissions & RBAC
 
-`dx-auth` resolves the current user's permission tokens (direct grants
+`arium-dioxus` resolves the current user's permission tokens (direct grants
 plus role-inherited ones) and ships them to the client on the
 `UserProfile`. `PermissionsProvider` (set up in step 3 above) caches the
 result for the lifetime of the tree; everything below reads from that.
@@ -493,13 +493,13 @@ Examples:
 
 ```toml
 # Postgres + everything
-dx-auth = { version = "0.1", default-features = false, features = ["server", "ui", "postgres"] }
+arium-dioxus = { version = "0.1", default-features = false, features = ["server", "ui", "postgres"] }
 
 # OAuth-only (no password / email flows), SQLite
-dx-auth = { version = "0.1", default-features = false, features = ["server", "ui", "sqlite", "oauth-github", "ratelimit"] }
+arium-dioxus = { version = "0.1", default-features = false, features = ["server", "ui", "sqlite", "oauth-github", "ratelimit"] }
 
 # Headless (bring your own component library)
-dx-auth = { version = "0.1", default-features = false, features = ["server", "sqlite", "oauth-github", "mfa", "mail", "ratelimit"] }
+arium-dioxus = { version = "0.1", default-features = false, features = ["server", "sqlite", "oauth-github", "mfa", "mail", "ratelimit"] }
 ```
 
 ## Environment variables
@@ -548,11 +548,11 @@ When unset, the dev fallback writes RFC-822 `.eml` files into
 
 Every sign-in, sign-out, admin action, and account self-service write
 goes through the audit emitter and lands in the `audit_events` table.
-The `dx_auth::ui::admin::AuditLog` component renders a filterable,
+The `arium_dioxus::ui::admin::AuditLog` component renders a filterable,
 paginated table — drop it onto an `/admin/audit` route.
 
 ```rust
-use dx_auth::{AuditConfig, AuthConfig};
+use arium_dioxus::{AuditConfig, AuthConfig};
 
 let cfg = AuthConfig::builder(pool.clone(), mailer)
     .audit(AuditConfig {
@@ -591,7 +591,7 @@ handle cleanup).
 Apps can emit their own events too:
 
 ```rust
-dx_auth::auth::audit::record(&pool, RecordInput { /* event_type, details, … */ }).await?;
+arium_dioxus::auth::audit::record(&pool, RecordInput { /* event_type, details, … */ }).await?;
 ```
 
 ## What the library ships vs what your app owns
@@ -619,18 +619,18 @@ dx_auth::auth::audit::record(&pool, RecordInput { /* event_type, details, … */
 
 ## Common pitfalls
 
-### `dx-auth/sqlite` (or `postgres`) belongs behind your `server` feature
+### `arium-dioxus/sqlite` (or `postgres`) belongs behind your `server` feature
 
 `sqlite` / `postgres` pull `axum_session_sqlx` → `aes-gcm` →
 `getrandom 0.2` into the build, and `getrandom 0.2` doesn't compile
 for `wasm32-unknown-unknown` without its `js` feature. Keep
-`dx-auth/sqlite` (or `postgres`) gated behind your own `server`
-feature rather than in the default `dx-auth` feature list. The example
+`arium-dioxus/sqlite` (or `postgres`) gated behind your own `server`
+feature rather than in the default `arium-dioxus` feature list. The example
 in `Cargo.toml` above shows this.
 
 ### `user.id` is `i32` but the session is `i64`
 
-`dx_auth::auth::User` declares `id: i32`, but the session type is
+`arium_dioxus::auth::User` declares `id: i32`, but the session type is
 `AuthSession<User, i64, _, _>` and the SQLite users column is
 `INTEGER` (64-bit). Cast at the boundary:
 
@@ -669,7 +669,7 @@ for any feature where selecting the wrong user matters.
 ## Dev tips
 
 - `cargo check --workspace` builds the library + example.
-- `cargo check -p dx-auth --no-default-features --features server,sqlite`
+- `cargo check -p arium-dioxus --no-default-features --features server,sqlite`
   builds the minimal library (no MFA, no OAuth, no mail, no rate limit).
 - `cd examples/basic && dx serve` runs the demo.
 - `sqlite3 examples/basic/auth.db '.schema'` inspects the live schema.

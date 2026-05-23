@@ -1,0 +1,94 @@
+[package]
+name = "arium"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Framework-agnostic authentication engine (passwords, sessions, OAuth, MFA, RBAC, API tokens, audit) for axum + sqlx apps."
+license = "MIT OR Apache-2.0"
+authors = ["Tony Bierman <tonybierman@gmail.com>"]
+repository = "https://github.com/tonybierman/arium"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["sqlite", "oauth-github", "mfa", "mail", "ratelimit", "tokens"]
+
+# Backend selection — pick exactly one.
+sqlite = ["sqlx/sqlite", "axum_session_sqlx/sqlite"]
+postgres = ["sqlx/postgres", "axum_session_sqlx/postgres"]
+
+# Optional per-capability features. All on by default; turn individual
+# ones off to slim the build down (e.g. an OAuth-only app can drop
+# `mail` and the email-send code disappears).
+#
+# Internal helper: any per-provider feature (`oauth-github`, future
+# `oauth-google`, ...) enables `_oauth-core`, which pulls in the shared
+# oauth2 / reqwest deps and gates the trait + registry + generic axum
+# handlers in `src/oauth.rs`. Per-provider impl modules are then gated by
+# their own feature.
+_oauth-core = ["dep:oauth2", "dep:reqwest"]
+oauth-github = ["_oauth-core"]
+mfa = ["dep:totp-rs"]
+mail = ["dep:lettre"]
+ratelimit = ["dep:tower_governor"]
+tokens = ["dep:sha2"]
+
+[dependencies]
+arium-wire = { path = "../arium-wire" }
+serde = { version = "1.0.225", features = ["derive"] }
+anyhow = "1.0.98"
+
+# This crate is server-only — it never compiles for wasm, so the heavy
+# backend deps are plain (non-optional, non-target-gated) dependencies.
+axum = { version = "0.8.4", default-features = false, features = ["macros"] }
+tokio = { version = "1.48", features = ["full"] }
+http = "1.3.1"
+async-trait = "0.1.88"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "macros",
+    "migrate",
+    "_unstable-all-types",
+    "tls-native-tls",
+    "runtime-tokio",
+] }
+axum_session = "0.16.0"
+axum_session_auth = "0.16.0"
+axum_session_sqlx = { version = "0.5.0", default-features = false }
+argon2 = "0.5"
+
+# Per-capability optional deps.
+oauth2 = { version = "5", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
+lettre = { version = "0.11", default-features = false, features = [
+    "smtp-transport",
+    "tokio1",
+    "tokio1-rustls-tls",
+    "builder",
+    "hostname",
+], optional = true }
+tower_governor = { version = "0.8", default-features = false, features = ["axum"], optional = true }
+totp-rs = { version = "5", features = ["qr", "gen_secret"], optional = true }
+sha2 = { version = "0.10", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "fs", "net"] }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "macros",
+    "migrate",
+] }
+async-trait = "0.1.88"
+serial_test = "3"
+regex = "1"
+tempfile = "3"
+totp-rs = { version = "5", features = ["gen_secret"] }
+argon2 = "0.5"
+anyhow = "1"
+wiremock = "0.6"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "cookies"] }
+serde_json = "1"
+url = "2"
+axum = "0.8"

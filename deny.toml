@@ -40,7 +40,7 @@ confidence-threshold = 0.9
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# Internal workspace deps like `dx-auth = { path = "..." }` show up as
+# Internal workspace deps like `arium = { path = "..." }` show up as
 # wildcards because they carry no version field. That's the normal
 # workspace-member pattern — don't trip on it.
 allow-wildcard-paths = true

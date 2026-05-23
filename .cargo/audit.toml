@@ -7,18 +7,18 @@
 ignore = [
     # RUSTSEC-2023-0071 — Marvin Attack on rsa 0.9.x.
     #
-    # Reaches dx-auth's build graph only as:
+    # Reaches arium's build graph only as:
     #
     #   rsa 0.9.10
     #   └── sqlx-mysql 0.8.6
     #       └── sqlx-macros-core 0.8.6
     #           └── sqlx-macros 0.8.6
     #               └── sqlx 0.8.6
-    #                   ├── dx-auth        (sqlite-only or postgres-only)
+    #                   ├── arium        (sqlite-only or postgres-only)
     #                   └── axum_session_sqlx
     #
     # sqlx-macros-core compiles every backend so the compile-time query
-    # macros can verify offline against any of them. dx-auth enables only
+    # macros can verify offline against any of them. arium enables only
     # `sqlx/sqlite` (and optionally `sqlx/postgres`) at runtime — the
     # mysql backend, and therefore the vulnerable rsa code path, is never
     # linked into the deployed binary.

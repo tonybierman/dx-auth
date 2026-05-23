@@ -10,7 +10,7 @@ description = """
 Test-fixture tokens that look like high-entropy secrets to the
 'generic-api-key' heuristic but are deliberately recognisable
 constant inputs used to exercise email-template width checks
-(see crates/dx-auth/tests/email_pipeline.rs).
+(see crates/arium/tests/email_pipeline.rs).
 """
 regexes = [
   # Exact 32-hex literal used in the password-reset / email-verify

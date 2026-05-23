@@ -1,9 +1,9 @@
 # examples/basic
 
-End-to-end demo of [`dx-auth`](../../). Every auth screen — sign in,
+End-to-end demo of [`arium-dioxus`](../../). Every auth screen — sign in,
 forgot/reset password, email verification, MFA challenge, MFA setup,
 account settings, admin user list / role editor / audit log — comes
-from the library as a drop-in `dx_auth::ui::*` component. This binary
+from the library as a drop-in `arium_dioxus::ui::*` component. This binary
 only owns app-specific pieces:
 
 - `Home` — the post-login landing page (tabs for Account, Two-factor,
@@ -13,7 +13,7 @@ only owns app-specific pieces:
 - `VerificationPending` — the "check your inbox" card shown after a
   signup needs verification.
 - `AccountSettingsPage` — a thin route wrapper around
-  `dx_auth::ui::AccountSettings`.
+  `arium_dioxus::ui::AccountSettings`.
 - `AdminPage` — a tabset that composes the library's
   `AdminUserList` / `AdminUserDetail` / `AuditLog` /
   `AdminRoleList` / `AdminRoleEditor` drop-ins, with per-tab
@@ -61,5 +61,5 @@ dx serve
   variables; the example forces dark via `app.css`).
 - `assets/app.css` — page layout + dark-theme override + a couple of
   example-only classes (`.app-shell`, `.profile-card`).
-- Schema migrations are applied via `dx_auth::migrator().run(&pool)`
+- Schema migrations are applied via `arium_dioxus::migrator().run(&pool)`
   at startup — the example owns no `.sql` files of its own.

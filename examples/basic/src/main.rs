@@ -1,4 +1,4 @@
-//! Example consumer of the `dx-auth` library.
+//! Example consumer of the `arium` library.
 //!
 //! All auth primitives — password / OAuth / MFA / email / sessions / rate
 //! limiting — live in the library. This binary only owns app-specific bits:
@@ -9,19 +9,21 @@ use std::collections::HashSet;
 
 use dioxus::prelude::*;
 
-use dx_auth::server::*;
-use dx_auth::ui::components::avatar::{Avatar, AvatarFallback, AvatarImage};
-use dx_auth::ui::components::button::{Button, ButtonVariant};
-use dx_auth::ui::components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
-use dx_auth::ui::components::input::Input;
-use dx_auth::ui::components::label::Label;
-use dx_auth::ui::components::tabs::{TabContent, TabList, TabTrigger, Tabs};
-use dx_auth::ui::{
+use arium_dioxus::server::*;
+use arium_dioxus::ui::components::avatar::{Avatar, AvatarFallback, AvatarImage};
+use arium_dioxus::ui::components::button::{Button, ButtonVariant};
+use arium_dioxus::ui::components::card::{
+    Card, CardContent, CardDescription, CardHeader, CardTitle,
+};
+use arium_dioxus::ui::components::input::Input;
+use arium_dioxus::ui::components::label::Label;
+use arium_dioxus::ui::components::tabs::{TabContent, TabList, TabTrigger, Tabs};
+use arium_dioxus::ui::{
     ApiTokens, ForgotPassword, LoginPanel, LoginSubmit, MfaChallenge, MfaSetup,
     OAuthProvidersProvider, PermissionGate, PermissionsProvider, Policy, RequirePermission,
     ResetPassword, SubmitKind, VerifyEmail, use_oauth_providers, use_permissions,
 };
-use dx_auth::{LoginOutcome, UserProfile, friendly_server_error};
+use arium_dioxus::{LoginOutcome, UserProfile, friendly_server_error};
 
 const THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
 const APP_CSS: Asset = asset!("/assets/app.css");
@@ -53,16 +55,16 @@ fn main() {
             .max_connections(20)
             .connect_with("sqlite://./auth.db?mode=rwc".parse()?)
             .await?;
-        // dx-auth owns the schema for `users`, `oauth_accounts`, `roles`,
-        // `audit_events`, `api_keys`, ... — they're embedded in the dx-auth
+        // arium owns the schema for `users`, `oauth_accounts`, `roles`,
+        // `audit_events`, `api_keys`, ... — they're embedded in the arium
         // crate. App-specific migrations (none yet) would run after this.
-        dx_auth::migrator().run(&pool).await?;
+        arium_dioxus::migrator().run(&pool).await?;
 
-        let mailer = dx_auth::Mailer::from_env()?;
+        let mailer = arium_dioxus::Mailer::from_env()?;
         println!("[startup] mailer backend: {}", mailer.describe());
 
-        let builder = dx_auth::AuthConfig::builder(pool, mailer);
-        let builder = match dx_auth::oauth::github::GithubProvider::from_env()? {
+        let builder = arium_dioxus::AuthConfig::builder(pool, mailer);
+        let builder = match arium_dioxus::oauth::github::GithubProvider::from_env()? {
             Some(gh) => {
                 println!("[startup] GitHub OAuth: enabled");
                 builder.oauth_provider(gh)?
@@ -78,7 +80,7 @@ fn main() {
 
         let cfg = builder.build()?;
 
-        dx_auth::install(dioxus::server::router(app), cfg).await
+        arium_dioxus::install(dioxus::server::router(app), cfg).await
     });
 }
 
@@ -193,7 +195,7 @@ fn Home() -> Element {
                             }
                             TabContent { index: 0_usize, value: "account".to_string(),
                                 ProfileCard { profile: profile_for_tab }
-                                dx_auth::ui::AccountSettings {}
+                                arium_dioxus::ui::AccountSettings {}
                             }
                             TabContent { index: 1_usize, value: "mfa".to_string(),
                                 MfaSetup {}
@@ -353,7 +355,7 @@ fn VerificationPending(email: String, on_back: EventHandler<()>) -> Element {
 
 // `ForgotPassword`, `ResetPassword`, `VerifyEmail`, `MfaChallenge`, and
 // `MfaSetup` are all drop-in components shipped by the library at
-// `dx_auth::ui::*` (imported above). The Route enum entries above pick
+// `arium_dioxus::ui::*` (imported above). The Route enum entries above pick
 // them up automatically.
 
 // ---- App-specific server fn: which permissions the current user has. ----
@@ -361,10 +363,10 @@ fn VerificationPending(email: String, on_back: EventHandler<()>) -> Element {
 /// Demo permission check using the seed `Category::View` token the library's
 /// helpers grant new accounts. Real apps would seed via their own hook (a
 /// future API improvement) rather than depending on the library's default.
-#[get("/api/user/permissions", auth: dx_auth::auth::Session)]
+#[get("/api/user/permissions", auth: arium_dioxus::auth::Session)]
 pub async fn get_permissions() -> Result<HashSet<String>> {
+    use arium_dioxus::auth::User;
     use axum_session_auth::{Auth, Rights};
-    use dx_auth::auth::User;
 
     let user = auth.current_user.unwrap();
 
@@ -384,7 +386,7 @@ pub async fn get_permissions() -> Result<HashSet<String>> {
 fn AccountSettingsPage() -> Element {
     rsx! {
         main { class: "app-shell",
-            dx_auth::ui::AccountSettings {}
+            arium_dioxus::ui::AccountSettings {}
             p { class: "auth-aux", a { href: "/", "← Back to home" } }
         }
     }
@@ -435,12 +437,12 @@ fn AdminPage() -> Element {
                     if can_users {
                         TabContent { index: 0_usize, value: "users".to_string(),
                             if let Some(uid) = selected() {
-                                dx_auth::ui::AdminUserDetail {
+                                arium_dioxus::ui::AdminUserDetail {
                                     user_id: uid,
                                     on_back: move |_| selected.set(None),
                                 }
                             } else {
-                                dx_auth::ui::AdminUserList {
+                                arium_dioxus::ui::AdminUserList {
                                     on_select: move |id: i64| selected.set(Some(id)),
                                 }
                             }
@@ -448,20 +450,20 @@ fn AdminPage() -> Element {
                     }
                     if can_audit {
                         TabContent { index: 1_usize, value: "audit".to_string(),
-                            dx_auth::ui::AuditLog {}
+                            arium_dioxus::ui::AuditLog {}
                         }
                     }
                     if can_roles {
                         TabContent { index: 2_usize, value: "roles".to_string(),
                             match role_pane() {
                                 Some(rid_opt) => rsx! {
-                                    dx_auth::ui::AdminRoleEditor {
+                                    arium_dioxus::ui::AdminRoleEditor {
                                         role_id: rid_opt,
                                         on_back: move |_| role_pane.set(None),
                                     }
                                 },
                                 None => rsx! {
-                                    dx_auth::ui::AdminRoleList {
+                                    arium_dioxus::ui::AdminRoleList {
                                         on_select: move |id: i64| role_pane.set(Some(Some(id))),
                                         on_new: move |_| role_pane.set(Some(None)),
                                     }
