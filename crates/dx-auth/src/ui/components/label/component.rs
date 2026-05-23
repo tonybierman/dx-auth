@@ -11,6 +11,7 @@ const LABEL_CSS: Asset = asset!(
 #[css_module("/src/ui/components/label/dx-label.css")]
 struct Styles;
 
+/// Themed `<label>` — pass `html_for: "input-id"` to wire it to a primitive.
 #[component]
 pub fn Label(props: LabelProps) -> Element {
     rsx! {

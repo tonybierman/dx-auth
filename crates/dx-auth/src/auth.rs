@@ -1,5 +1,9 @@
-//! The code here is pulled from the `axum-session-auth` crate examples, requiring little to no
-//! modification to work with dioxus fullstack.
+//! Server-side authentication primitives: the `User` model that the session
+//! layer loads, the password and MFA flows, the audit-log emitter, and the
+//! helpers every server fn uses to identify the caller.
+//!
+//! The session/user plumbing is adapted from the `axum-session-auth` examples
+//! and tweaked to fit the dioxus-fullstack request lifecycle.
 
 use crate::pool::Pool;
 use crate::pool::SessionPool;
@@ -8,23 +12,38 @@ use axum_session_auth::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// Per-request session handle that lets server fns identify the caller,
+/// sign them in, sign them out, etc.
 pub type Session = axum_session_auth::AuthSession<User, i64, SessionPool, Pool>;
+/// Tower layer that attaches a [`Session`] to each request.
 pub type AuthLayer = axum_session_auth::AuthSessionLayer<User, i64, SessionPool, Pool>;
 
+/// Authenticated user as seen from the session layer. Stripped down to the
+/// fields the UI needs; the full row stays in the database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
+    /// Database row id (matches `users.id`).
     pub id: i32,
+    /// `true` for the built-in Guest user.
     pub anonymous: bool,
+    /// Local username (email for password accounts, provider handle otherwise).
     pub username: String,
+    /// Display name from the OAuth provider, if any.
     pub name: Option<String>,
+    /// Email on file, if any.
     pub email: Option<String>,
+    /// Avatar URL from the OAuth provider, when available.
     pub avatar_url: Option<String>,
+    /// Public profile URL on the OAuth provider, when available.
     pub html_url: Option<String>,
+    /// Effective permission tokens — direct plus role-inherited, deduped.
     pub permissions: HashSet<String>,
 }
 
+/// Row shape used internally to load permission tokens for a user.
 #[derive(sqlx::FromRow, Clone)]
 pub struct SqlPermissionTokens {
+    /// The permission token string (e.g. `"admin"`, `"audit.read"`).
     pub token: String,
 }
 
@@ -261,11 +280,16 @@ pub async fn set_user_roles(db: &Pool, user_id: i64, role_ids: &[i64]) -> anyhow
     Ok(())
 }
 
+/// One row in the `roles` table.
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize, PartialEq)]
 pub struct RoleRow {
+    /// Database row id.
     pub id: i64,
+    /// Unique role name (e.g. `"admin"`, `"editor"`).
     pub name: String,
+    /// Optional human-readable description.
     pub description: Option<String>,
+    /// `true` for roles seeded by dx-auth; these can't be renamed or deleted.
     pub is_system: bool,
 }
 
@@ -486,18 +510,31 @@ pub async fn update_display_name(
 
 // ---- Admin / paginated user listing ----
 
+/// Row shape returned by [`list_users_for_admin`] — fields the admin UI
+/// needs without joining role data in.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct AdminUserRow {
+    /// Database row id.
     pub id: i64,
+    /// Local username.
     pub username: String,
+    /// User-chosen display name, if any.
     pub display_name: Option<String>,
+    /// Email on file, if any.
     pub email: Option<String>,
+    /// Unix seconds when the email was verified, or `None` if not yet.
     pub email_verified_at: Option<i64>,
+    /// Unix seconds when MFA enrollment was confirmed, or `None` if MFA is off.
     pub mfa_enabled_at: Option<i64>,
+    /// `true` for the Guest row.
     pub anonymous: bool,
+    /// Unix seconds when the account was soft-deleted, or `None` if active.
     pub deleted_at: Option<i64>,
+    /// Display name pulled from the OAuth provider.
     pub name: Option<String>,
+    /// Avatar URL from the OAuth provider, when available.
     pub avatar_url: Option<String>,
+    /// Public profile URL on the OAuth provider, when available.
     pub html_url: Option<String>,
 }
 
@@ -778,8 +815,12 @@ fn unix_now() -> i64 {
 /// cases into one to avoid user enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerifyOutcome {
+    /// Password matched. Carries the user id.
     Verified(i64),
+    /// Password matched, but the account's email is not yet verified.
     Unverified,
+    /// No matching account or bad password — kept indistinguishable on
+    /// purpose so attackers can't enumerate accounts.
     Invalid,
 }
 
@@ -906,8 +947,11 @@ const RECOVERY_CODE_COUNT: usize = 10;
 /// hashes hit the DB).
 #[cfg(feature = "mfa")]
 pub struct MfaSetupInfo {
+    /// TOTP secret, base32-encoded.
     pub secret_base32: String,
+    /// QR code PNG (base64) encoding the `otpauth://` URI.
     pub qr_png_base64: String,
+    /// Freshly-minted plaintext recovery codes; shown to the user once.
     pub recovery_codes: Vec<String>,
 }
 
@@ -1170,37 +1214,63 @@ pub mod audit {
     // -- Canonical event-type constants used by the library's own server fns. --
     // Apps are free to emit their own taxonomies in addition.
 
+    /// Password sign-in succeeded.
     pub const USER_LOGIN_SUCCESS: &str = "user.login.success";
+    /// Password sign-in rejected (wrong password, unverified email, etc.).
     pub const USER_LOGIN_FAILED: &str = "user.login.failed";
+    /// User signed out (explicit logout).
     pub const USER_LOGOUT: &str = "user.logout";
+    /// Account created via the signup flow.
     pub const USER_SIGNUP: &str = "user.signup";
+    /// Email verification link clicked successfully.
     pub const USER_EMAIL_VERIFIED: &str = "user.email_verified";
+    /// Password-reset email was sent.
     pub const USER_PWD_RESET_REQUESTED: &str = "user.password_reset.requested";
+    /// Password-reset token was consumed and the password was changed.
     pub const USER_PWD_RESET_CONSUMED: &str = "user.password_reset.consumed";
+    /// MFA enrollment was confirmed.
     pub const USER_MFA_ENABLED: &str = "user.mfa.enabled";
+    /// MFA was turned off on the account.
     pub const USER_MFA_DISABLED: &str = "user.mfa.disabled";
 
+    /// A new API token was minted.
     pub const USER_API_TOKEN_CREATED: &str = "user.api_token.created";
+    /// An API token was revoked.
     pub const USER_API_TOKEN_REVOKED: &str = "user.api_token.revoked";
 
+    /// User changed their own password from the account settings page.
     pub const ACCOUNT_PASSWORD_CHANGED: &str = "account.password_changed";
+    /// User changed their own display name.
     pub const ACCOUNT_DISPLAY_NAME_CHANGED: &str = "account.display_name_changed";
+    /// User soft-deleted their own account.
     pub const ACCOUNT_SELF_DELETED: &str = "account.self_deleted";
 
+    /// An admin changed the role assignments on another user.
     pub const ADMIN_ROLES_CHANGED: &str = "admin.user.roles_changed";
+    /// An admin soft-deleted another user.
     pub const ADMIN_USER_DELETED: &str = "admin.user.soft_deleted";
+    /// An admin created a new role.
     pub const ADMIN_ROLE_CREATED: &str = "admin.role.created";
+    /// An admin updated a role's metadata or permission set.
     pub const ADMIN_ROLE_UPDATED: &str = "admin.role.updated";
+    /// An admin deleted a role.
     pub const ADMIN_ROLE_DELETED: &str = "admin.role.deleted";
 
-    /// All fields are optional — pass `None` for whatever you don't have.
-    /// `details` should be a small JSON document (or `None`).
+    /// Input to [`record`]. All fields are optional — pass `None` for
+    /// whatever you don't have. `details` should be a small JSON document
+    /// (or `None`).
     pub struct RecordInput<'a> {
+        /// Dotted event type (use the constants above when one applies).
         pub event_type: &'a str,
+        /// User id that triggered the event, if any.
         pub actor_id: Option<i64>,
+        /// User id the event acted on, when distinct from the actor.
         pub target_id: Option<i64>,
+        /// Client IP, when captured.
         pub ip: Option<&'a str>,
+        /// Client User-Agent, when captured.
         pub user_agent: Option<&'a str>,
+        /// Free-form JSON payload describing the event.
         pub details: Option<&'a str>,
     }
 

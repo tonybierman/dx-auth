@@ -17,6 +17,8 @@ const SELECT_CSS: Asset = asset!(
 #[css_module("/src/ui/components/select/dx-select.css")]
 struct Styles;
 
+/// Single-select dropdown. Compose with [`SelectOption`] children
+/// (optionally grouped with [`SelectGroup`] + [`SelectGroupLabel`]).
 #[component]
 pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element {
     let base = attributes!(div {
@@ -55,6 +57,7 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
     }
 }
 
+/// Multi-select dropdown variant of [`Select`].
 #[component]
 pub fn SelectMulti<T: Clone + PartialEq + 'static>(props: SelectMultiProps<T>) -> Element {
     let base = attributes!(div {
@@ -93,6 +96,7 @@ pub fn SelectMulti<T: Clone + PartialEq + 'static>(props: SelectMultiProps<T>) -
     }
 }
 
+/// Heading row inside a [`SelectGroup`].
 #[component]
 pub fn SelectGroupLabel(props: SelectGroupLabelProps) -> Element {
     let base = attributes!(div {
@@ -110,6 +114,7 @@ pub fn SelectGroupLabel(props: SelectGroupLabelProps) -> Element {
     }
 }
 
+/// One option inside a [`Select`] or [`SelectMulti`].
 #[component]
 pub fn SelectOption<T: Clone + PartialEq + 'static>(props: SelectOptionProps<T>) -> Element {
     let base = attributes!(div {

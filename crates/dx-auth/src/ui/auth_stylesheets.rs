@@ -11,7 +11,7 @@
 //! on remount, leaving the login screen unstyled.
 //!
 //! `AuthStylesheets` declares the same `Asset`s a second time and emits
-//! them from a component that's mounted by [`super::PermissionsProvider`]
+//! them from a component that's mounted by [`crate::ui::permissions::PermissionsProvider`]
 //! for the whole session, so the link tags stay put. The `asset!()` macro
 //! is content-addressed, so re-declaring the same path + options here
 //! resolves to the same bundled URL the widgets themselves use — no
@@ -94,7 +94,7 @@ const TOKENS_CSS: Asset = asset!("/src/ui/tokens/style.css", AssetOptions::css_m
 
 /// Emits `document::Stylesheet` link tags for every catalog widget and
 /// drop-in auth route the library ships. Rendered by
-/// [`super::PermissionsProvider`] so consumers don't need to call this
+/// [`crate::ui::permissions::PermissionsProvider`] so consumers don't need to call this
 /// directly — but it's `pub` in case an app wants to mount the link tags
 /// without using `PermissionsProvider` (e.g. a marketing landing page
 /// that embeds `LoginPanel` without any of the RBAC plumbing).

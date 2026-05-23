@@ -11,17 +11,23 @@ const BADGE_CSS: Asset = asset!(
 #[css_module("/src/ui/components/badge/dx-badge.css")]
 struct Styles;
 
+/// Visual style of a [`Badge`].
 #[derive(Copy, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum BadgeVariant {
+    /// Solid primary brand color.
     #[default]
     Primary,
+    /// Muted secondary fill.
     Secondary,
+    /// Red, for destructive labels.
     Destructive,
+    /// Transparent fill with a border.
     Outline,
 }
 
 impl BadgeVariant {
+    /// CSS `data-style` value used to select this variant in the stylesheet.
     pub fn class(&self) -> &'static str {
         match self {
             BadgeVariant::Primary => "primary",
@@ -35,6 +41,7 @@ impl BadgeVariant {
 /// The props for the [`Badge`] component.
 #[derive(Props, Clone, PartialEq)]
 pub struct BadgeProps {
+    /// Visual style.
     #[props(default)]
     pub variant: BadgeVariant,
 
@@ -46,6 +53,7 @@ pub struct BadgeProps {
     pub children: Element,
 }
 
+/// Inline pill displaying a short label (e.g. role, status).
 #[component]
 pub fn Badge(props: BadgeProps) -> Element {
     rsx! {
@@ -71,6 +79,7 @@ fn BadgeElement(props: BadgeProps) -> Element {
     }
 }
 
+/// Small green checkmark icon — pair with a [`Badge`] to mark "verified".
 #[component]
 pub fn VerifiedIcon() -> Element {
     rsx! {

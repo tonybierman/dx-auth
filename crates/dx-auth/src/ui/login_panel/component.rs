@@ -24,8 +24,11 @@ struct Styles;
 /// `String::leak`ing.
 #[derive(Clone, PartialEq)]
 pub struct LoginProvider {
+    /// Button label (e.g. `"GitHub"`).
     pub name: String,
+    /// Server-side route that starts the OAuth dance.
     pub href: String,
+    /// Optional inline SVG markup for the button icon.
     pub icon_svg: Option<String>,
 }
 
@@ -43,8 +46,10 @@ impl From<crate::wire::ProviderInfo> for LoginProvider {
 /// password-confirm field appears.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum SubmitKind {
+    /// Existing user signing in.
     #[default]
     SignIn,
+    /// New user registering an account.
     SignUp,
 }
 
@@ -53,9 +58,13 @@ pub enum SubmitKind {
 /// the user still has to verify their email before they're really in.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct LoginSubmit {
+    /// Sign-in vs. sign-up form mode at submit time.
     pub kind: SubmitKind,
+    /// Email the user typed.
     pub email: String,
+    /// Password the user typed.
     pub password: String,
+    /// "Remember me" checkbox state. Only meaningful when `kind == SignIn`.
     pub remember: bool,
 }
 

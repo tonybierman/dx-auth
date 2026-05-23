@@ -11,6 +11,7 @@ const SKELETON_CSS: Asset = asset!(
 #[css_module("/src/ui/components/skeleton/dx-skeleton.css")]
 struct Styles;
 
+/// Pulsing placeholder shown while async content is loading.
 #[component]
 pub fn Skeleton(#[props(extends=GlobalAttributes)] attributes: Vec<Attribute>) -> Element {
     let base = attributes!(div {

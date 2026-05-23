@@ -12,12 +12,20 @@ compile_error!("dx-auth: enable exactly one of the `sqlite` or `postgres` featur
 #[cfg(not(any(feature = "sqlite", feature = "postgres")))]
 compile_error!("dx-auth: enable one of the `sqlite` or `postgres` features.");
 
+/// The sqlx connection pool dx-auth runs every query against. Resolves to
+/// `SqlitePool` or `PgPool` depending on which backend feature is active.
 #[cfg(feature = "sqlite")]
 pub type Pool = sqlx::SqlitePool;
+/// The sqlx connection pool dx-auth runs every query against. Resolves to
+/// `SqlitePool` or `PgPool` depending on which backend feature is active.
 #[cfg(feature = "postgres")]
 pub type Pool = sqlx::PgPool;
 
+/// The session-store pool adapter consumed by `axum_session`. Wraps the
+/// matching backend variant of [`Pool`].
 #[cfg(feature = "sqlite")]
 pub type SessionPool = axum_session_sqlx::SessionSqlitePool;
+/// The session-store pool adapter consumed by `axum_session`. Wraps the
+/// matching backend variant of [`Pool`].
 #[cfg(feature = "postgres")]
 pub type SessionPool = axum_session_sqlx::SessionPgPool;

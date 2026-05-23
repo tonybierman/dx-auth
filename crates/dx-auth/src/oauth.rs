@@ -35,8 +35,11 @@ pub struct NormalizedProfile {
     /// without a public handle should fall back to the local-part of the
     /// email or the user id.
     pub login: String,
+    /// Display name reported by the provider, when available.
     pub name: Option<String>,
+    /// Primary email address reported by the provider, when available.
     pub email: Option<String>,
+    /// Avatar URL reported by the provider, when available.
     pub avatar_url: Option<String>,
     /// Public profile URL on the provider's site (e.g. `https://github.com/octocat`).
     /// `None` for providers that don't expose one.
@@ -61,10 +64,16 @@ pub trait OAuthProvider: Send + Sync + 'static {
         None
     }
 
+    /// Provider OAuth client id.
     fn client_id(&self) -> &str;
+    /// Provider OAuth client secret.
     fn client_secret(&self) -> &str;
+    /// Redirect URL registered with the provider — must match exactly,
+    /// including scheme and trailing slash.
     fn redirect_url(&self) -> &str;
+    /// Authorize endpoint URL.
     fn auth_url(&self) -> &str;
+    /// Token endpoint URL.
     fn token_url(&self) -> &str;
 
     /// OAuth scopes to request during the authorize step.
@@ -84,7 +93,11 @@ pub trait OAuthProvider: Send + Sync + 'static {
 /// handle. Cloned into axum state for the generic OAuth handlers.
 #[derive(Clone)]
 pub struct OAuthRegistry {
+    /// Database pool shared with the rest of the app; OAuth callback uses it
+    /// to look up / create the local `users` row.
     pub db: Pool,
+    /// Shared HTTP client; redirects are disabled (SSRF mitigation per the
+    /// `oauth2` crate guidance).
     pub http: reqwest::Client,
     providers: Arc<Vec<Arc<dyn OAuthProvider>>>,
 }
@@ -117,14 +130,17 @@ impl OAuthRegistry {
         self
     }
 
+    /// Look up a registered provider by its lowercase machine name.
     pub fn get(&self, name: &str) -> Option<Arc<dyn OAuthProvider>> {
         self.providers.iter().find(|p| p.name() == name).cloned()
     }
 
+    /// All registered providers in registration order.
     pub fn list(&self) -> &[Arc<dyn OAuthProvider>] {
         &self.providers
     }
 
+    /// `true` when no providers are registered (the OAuth routes are skipped).
     pub fn is_empty(&self) -> bool {
         self.providers.is_empty()
     }

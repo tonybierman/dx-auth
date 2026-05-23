@@ -20,14 +20,14 @@ use crate::config::AuthConfig;
 /// What this does, in order:
 ///
 /// 1. Mounts `/auth/{provider}/login` + `/auth/{provider}/callback` routes for
-///    every provider registered on the config's [`OAuthRegistry`]. With no
+///    every provider registered on the config's OAuth registry. With no
 ///    providers (or when `_oauth-core` is off) this is a no-op.
 /// 2. Layers a per-IP rate limiter (when configured) using a key extractor
 ///    that gracefully falls back to a fixed sentinel address if no IP source
 ///    is available (so the first request under `dx serve` doesn't 500).
 /// 3. Adds `axum::Extension`s for the [`Pool`](crate::pool::Pool), the list
-///    of `ProviderInfo` available_providers serves, and the
-///    [`Mailer`](crate::Mailer).
+///    of `ProviderInfo` available_providers serves, and the `Mailer` (when
+///    the `mail` feature is on).
 /// 4. Adds the `axum_session_auth::AuthSessionLayer` with the anonymous Guest
 ///    user (`id = 1`).
 /// 5. Adds the `axum_session::SessionLayer` with cookie / lifetime settings

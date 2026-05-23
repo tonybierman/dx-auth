@@ -12,6 +12,7 @@ const CHECKBOX_CSS: Asset = asset!(
 #[css_module("/src/ui/components/checkbox/dx-checkbox.css")]
 struct Styles;
 
+/// Themed checkbox primitive.
 #[component]
 pub fn Checkbox(props: CheckboxProps) -> Element {
     rsx! {

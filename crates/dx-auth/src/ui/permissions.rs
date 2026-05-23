@@ -35,18 +35,23 @@ pub struct PermissionSet {
 }
 
 impl PermissionSet {
+    /// `true` if `token` is one of the user's permissions.
     pub fn has(&self, token: &str) -> bool {
         self.tokens.contains(token)
     }
 
+    /// `true` if the user has at least one of `tokens`.
     pub fn any_of<S: AsRef<str>>(&self, tokens: impl IntoIterator<Item = S>) -> bool {
         tokens.into_iter().any(|t| self.has(t.as_ref()))
     }
 
+    /// `true` if the user has every token in `tokens`.
     pub fn all_of<S: AsRef<str>>(&self, tokens: impl IntoIterator<Item = S>) -> bool {
         tokens.into_iter().all(|t| self.has(t.as_ref()))
     }
 
+    /// `true` if the underlying profile is authenticated (i.e. not the Guest
+    /// row). Independent of the token set.
     pub fn is_authenticated(&self) -> bool {
         self.is_authenticated
     }
@@ -123,22 +128,28 @@ impl UsePermissions {
         self.ctx.set.read().clone()
     }
 
+    /// `true` if the current user has `token`.
     pub fn has(&self, token: &str) -> bool {
         self.ctx.set.read().has(token)
     }
 
+    /// `true` if the current user has at least one of `tokens`.
     pub fn any_of<S: AsRef<str>>(&self, tokens: impl IntoIterator<Item = S>) -> bool {
         self.ctx.set.read().any_of(tokens)
     }
 
+    /// `true` if the current user has every token in `tokens`.
     pub fn all_of<S: AsRef<str>>(&self, tokens: impl IntoIterator<Item = S>) -> bool {
         self.ctx.set.read().all_of(tokens)
     }
 
+    /// `true` while the underlying profile resource is still loading.
     pub fn is_loading(&self) -> bool {
         *self.ctx.phase.read() == Phase::Loading
     }
 
+    /// `true` if the underlying profile is authenticated (independent of any
+    /// specific permission token).
     pub fn is_authenticated(&self) -> bool {
         self.ctx.set.read().is_authenticated()
     }

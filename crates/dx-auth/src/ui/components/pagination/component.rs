@@ -11,15 +11,21 @@ const PAGINATION_CSS: Asset = asset!(
 #[css_module("/src/ui/components/pagination/dx-pagination.css")]
 struct Styles;
 
+/// Sizing preset for a [`PaginationLink`]. `Icon` produces a square button
+/// suitable for chevron-only previous/next controls; `Default` is wider for
+/// numbered pages.
 #[derive(Copy, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum PaginationLinkSize {
+    /// Square, no label.
     #[default]
     Icon,
+    /// Standard, with a label.
     Default,
 }
 
 impl PaginationLinkSize {
+    /// CSS `data-size` value for this size.
     pub fn class(&self) -> &'static str {
         match self {
             PaginationLinkSize::Icon => "icon",
@@ -28,14 +34,18 @@ impl PaginationLinkSize {
     }
 }
 
+/// Whether a [`PaginationLink`] is the previous- or next-page chevron.
 #[derive(Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum PaginationLinkKind {
+    /// Previous-page chevron.
     Previous,
+    /// Next-page chevron.
     Next,
 }
 
 impl PaginationLinkKind {
+    /// CSS `data-kind` value for this kind.
     pub fn attr(&self) -> &'static str {
         match self {
             PaginationLinkKind::Previous => "previous",
@@ -44,6 +54,8 @@ impl PaginationLinkKind {
     }
 }
 
+/// Outer `<nav>` wrapper for a page navigator. Compose with
+/// [`PaginationContent`] holding [`PaginationItem`] children.
 #[component]
 pub fn Pagination(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
@@ -62,6 +74,7 @@ pub fn Pagination(
     }
 }
 
+/// `<ul>` row of [`PaginationItem`]s inside a [`Pagination`].
 #[component]
 pub fn PaginationContent(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
@@ -78,6 +91,7 @@ pub fn PaginationContent(
     }
 }
 
+/// `<li>` wrapper around a [`PaginationLink`] or [`PaginationEllipsis`].
 #[component]
 pub fn PaginationItem(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
@@ -92,23 +106,33 @@ pub fn PaginationItem(
     }
 }
 
+/// Props for [`PaginationLink`].
 #[derive(Props, Clone, PartialEq)]
 pub struct PaginationLinkProps {
+    /// `true` if this link represents the current page.
     #[props(default)]
     pub is_active: bool,
+    /// Sizing preset.
     #[props(default)]
     pub size: PaginationLinkSize,
+    /// Tag the link as the previous- or next-page control.
     #[props(default)]
     pub data_kind: Option<PaginationLinkKind>,
+    /// Click handler.
     onclick: Option<EventHandler<MouseEvent>>,
+    /// Mouse-down handler.
     onmousedown: Option<EventHandler<MouseEvent>>,
+    /// Mouse-up handler.
     onmouseup: Option<EventHandler<MouseEvent>>,
+    /// Extra HTML attributes merged onto the `<a>`.
     #[props(extends = GlobalAttributes)]
     #[props(extends = a)]
     pub attributes: Vec<Attribute>,
+    /// Link label (typically a page number).
     pub children: Element,
 }
 
+/// Clickable page-number / previous-/next- control inside a [`Pagination`].
 #[component]
 pub fn PaginationLink(props: PaginationLinkProps) -> Element {
     let aria_current = if props.is_active { Some("page") } else { None };
@@ -143,6 +167,7 @@ pub fn PaginationLink(props: PaginationLinkProps) -> Element {
     }
 }
 
+/// "Previous" chevron-link convenience over [`PaginationLink`].
 #[component]
 pub fn PaginationPrevious(
     onclick: Option<EventHandler<MouseEvent>>,
@@ -167,6 +192,7 @@ pub fn PaginationPrevious(
     }
 }
 
+/// "Next" chevron-link convenience over [`PaginationLink`].
 #[component]
 pub fn PaginationNext(
     onclick: Option<EventHandler<MouseEvent>>,
@@ -191,6 +217,7 @@ pub fn PaginationNext(
     }
 }
 
+/// `...` placeholder inserted between gaps in a long page list.
 #[component]
 pub fn PaginationEllipsis(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,

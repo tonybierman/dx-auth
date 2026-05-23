@@ -12,6 +12,8 @@ const SEPARATOR_CSS: Asset = asset!(
 #[css_module("/src/ui/components/separator/dx-separator.css")]
 struct Styles;
 
+/// Horizontal or vertical hairline. Set `horizontal: false` for a vertical
+/// rule; set `decorative: true` to keep it out of the accessibility tree.
 #[component]
 pub fn Separator(props: SeparatorProps) -> Element {
     let base = attributes!(div {

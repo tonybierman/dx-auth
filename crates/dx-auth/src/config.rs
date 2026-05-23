@@ -96,6 +96,7 @@ impl AuthConfig {
         }
     }
 
+    /// Start a new builder without the `mail` feature compiled in.
     #[cfg(not(feature = "mail"))]
     pub fn builder(pool: Pool) -> AuthConfigBuilder {
         AuthConfigBuilder {
@@ -204,6 +205,8 @@ impl AuthConfigBuilder {
         self
     }
 
+    /// Consume the builder and produce the [`AuthConfig`] ready to hand to
+    /// [`crate::install`].
     pub fn build(self) -> AuthConfig {
         #[cfg(feature = "_oauth-core")]
         let oauth = self.oauth.unwrap_or_else(|| {

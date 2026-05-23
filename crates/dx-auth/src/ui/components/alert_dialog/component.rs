@@ -14,6 +14,8 @@ const ALERT_DIALOG_CSS: Asset = asset!(
 #[css_module("/src/ui/components/alert_dialog/dx-alert-dialog.css")]
 struct Styles;
 
+/// Modal confirmation dialog. Compose with [`AlertDialogTitle`],
+/// [`AlertDialogDescription`], and [`AlertDialogActions`] children.
 #[component]
 pub fn AlertDialog(props: AlertDialogRootProps) -> Element {
     rsx! {
@@ -33,6 +35,7 @@ pub fn AlertDialog(props: AlertDialogRootProps) -> Element {
     }
 }
 
+/// Heading text inside an [`AlertDialog`].
 #[component]
 pub fn AlertDialogTitle(props: AlertDialogTitleProps) -> Element {
     rsx! {
@@ -45,6 +48,7 @@ pub fn AlertDialogTitle(props: AlertDialogTitleProps) -> Element {
     }
 }
 
+/// Body text inside an [`AlertDialog`].
 #[component]
 pub fn AlertDialogDescription(props: AlertDialogDescriptionProps) -> Element {
     rsx! {
@@ -57,6 +61,7 @@ pub fn AlertDialogDescription(props: AlertDialogDescriptionProps) -> Element {
     }
 }
 
+/// Footer row holding [`AlertDialogCancel`] / [`AlertDialogAction`] buttons.
 #[component]
 pub fn AlertDialogActions(props: AlertDialogActionsProps) -> Element {
     rsx! {
@@ -65,6 +70,7 @@ pub fn AlertDialogActions(props: AlertDialogActionsProps) -> Element {
     }
 }
 
+/// Dismiss button — closes the dialog without confirming.
 #[component]
 pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
     rsx! {
@@ -78,6 +84,7 @@ pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
     }
 }
 
+/// Confirm button — closes the dialog and invokes `on_click`.
 #[component]
 pub fn AlertDialogAction(props: AlertDialogActionProps) -> Element {
     rsx! {

@@ -13,11 +13,15 @@ const AVATAR_CSS: Asset = asset!(
 #[css_module("/src/ui/components/avatar/dx-avatar.css")]
 struct Styles;
 
+/// Dimensions preset for [`Avatar`].
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum AvatarImageSize {
+    /// 24px-ish.
     #[default]
     Small,
+    /// 32px-ish.
     Medium,
+    /// 48px-ish.
     Large,
 }
 
@@ -31,10 +35,13 @@ impl AvatarImageSize {
     }
 }
 
+/// Corner style for [`Avatar`].
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum AvatarShape {
+    /// Fully-circular.
     #[default]
     Circle,
+    /// Square with rounded corners.
     Rounded,
 }
 
@@ -62,9 +69,11 @@ pub struct AvatarProps {
     #[props(default)]
     pub on_state_change: Option<EventHandler<AvatarState>>,
 
+    /// Sizing preset.
     #[props(default)]
     pub size: AvatarImageSize,
 
+    /// Corner-radius preset.
     #[props(default)]
     pub shape: AvatarShape,
 
@@ -76,6 +85,8 @@ pub struct AvatarProps {
     pub children: Element,
 }
 
+/// Round image avatar with a [`AvatarFallback`] shown while the image loads
+/// or if it fails. Compose with [`AvatarImage`] inside.
 #[component]
 pub fn Avatar(props: AvatarProps) -> Element {
     let class = format!(
@@ -99,20 +110,27 @@ pub fn Avatar(props: AvatarProps) -> Element {
     }
 }
 
+/// Props for [`AvatarImage`].
 #[derive(Props, Clone, PartialEq)]
 pub struct AvatarImageProps {
+    /// Optional DOM id (reactive).
     #[props(default)]
     pub id: ReadSignal<Option<String>>,
 
+    /// Image URL.
     pub src: String,
 
+    /// Alt text for screen readers.
     #[props(default)]
     pub alt: String,
 
+    /// Extra HTML attributes merged onto the `<img>`.
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
 
+/// The `<img>` child of [`Avatar`]. Hidden until it loads successfully; the
+/// [`AvatarFallback`] takes over on error.
 #[component]
 pub fn AvatarImage(props: AvatarImageProps) -> Element {
     let base = attributes!(img {
@@ -132,14 +150,18 @@ pub fn AvatarImage(props: AvatarImageProps) -> Element {
     }
 }
 
+/// Props for [`AvatarFallback`].
 #[derive(Props, Clone, PartialEq)]
 pub struct AvatarFallbackProps {
+    /// Extra HTML attributes merged onto the fallback element.
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 
+    /// Fallback content (e.g. initials, an icon).
     pub children: Element,
 }
 
+/// Placeholder content shown until [`AvatarImage`] succeeds.
 #[component]
 pub fn AvatarFallback(props: AvatarFallbackProps) -> Element {
     let base = attributes!(span {
@@ -178,9 +200,11 @@ pub struct ImageAvatarProps {
     #[props(default)]
     pub on_state_change: Option<EventHandler<AvatarState>>,
 
+    /// Sizing preset.
     #[props(default)]
     pub size: AvatarImageSize,
 
+    /// Corner-radius preset.
     #[props(default)]
     pub shape: AvatarShape,
 
@@ -192,6 +216,9 @@ pub struct ImageAvatarProps {
     pub children: Element,
 }
 
+/// One-shot avatar that wires [`Avatar`] + [`AvatarImage`] + [`AvatarFallback`]
+/// together. Use when you have a URL and a fallback string and don't need
+/// to compose the parts yourself.
 #[component]
 pub fn ImageAvatar(props: ImageAvatarProps) -> Element {
     rsx! {

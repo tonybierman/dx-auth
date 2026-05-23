@@ -10,6 +10,9 @@ const INPUT_CSS: Asset = asset!(
 #[css_module("/src/ui/components/input/dx-input.css")]
 struct Styles;
 
+/// Themed `<input>`. Forwards every standard input event through optional
+/// handlers; any HTML attribute (`type`, `value`, `placeholder`, ...) is
+/// merged through.
 #[component]
 pub fn Input(
     oninput: Option<EventHandler<FormEvent>>,

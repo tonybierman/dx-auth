@@ -1,6 +1,6 @@
 //! Shared OAuth provider list, established once at the app root.
 //!
-//! [`LoginPanel`](super::LoginPanel) takes a `providers: Vec<LoginProvider>`
+//! [`LoginPanel`](crate::ui::LoginPanel) takes a `providers: Vec<LoginProvider>`
 //! prop. Building that list with `use_resource(available_providers)` inside
 //! a route component is fine for a one-screen app, but it has a sharp edge
 //! whenever the login surface comes in and out of the tree:
@@ -22,7 +22,7 @@
 //! provider list with [`use_oauth_providers`].
 //!
 //! Drop the provider near the top of your app, alongside
-//! [`PermissionsProvider`](super::PermissionsProvider):
+//! [`PermissionsProvider`](crate::ui::permissions::PermissionsProvider):
 //!
 //! ```rust,ignore
 //! rsx! {

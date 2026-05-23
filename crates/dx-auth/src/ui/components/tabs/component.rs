@@ -74,6 +74,8 @@ impl TabsVariant {
     }
 }
 
+/// Tabbed container. Compose with one [`TabList`] holding [`TabTrigger`]s
+/// and one [`TabContent`] per tab.
 #[component]
 pub fn Tabs(props: TabsProps) -> Element {
     let base = attributes!(div {
@@ -97,6 +99,7 @@ pub fn Tabs(props: TabsProps) -> Element {
     }
 }
 
+/// Row of [`TabTrigger`]s rendered inside [`Tabs`].
 #[component]
 pub fn TabList(props: TabListProps) -> Element {
     let base = attributes!(div {
@@ -110,6 +113,7 @@ pub fn TabList(props: TabListProps) -> Element {
     }
 }
 
+/// Clickable tab header — matches a [`TabContent`] with the same `value`.
 #[component]
 pub fn TabTrigger(props: TabTriggerProps) -> Element {
     let base = attributes!(button {
@@ -135,6 +139,7 @@ pub fn TabTrigger(props: TabTriggerProps) -> Element {
     }
 }
 
+/// Body shown when its [`TabTrigger`] is active.
 #[component]
 pub fn TabContent(props: TabContentProps) -> Element {
     let base = attributes!(div {

@@ -163,6 +163,8 @@ impl Mailer {
 
 /// Email templates. Each returns `(subject, plain_text, html_optional)`.
 pub mod templates {
+    /// Body for the "click here to reset" email.
+    ///
     /// IMPORTANT: keep every line of the plain-text body shorter than 76
     /// characters, so lettre picks 7bit transfer encoding and the URL stays
     /// intact when viewing the raw `.eml` file.
@@ -188,6 +190,7 @@ pub mod templates {
         (subject, text, Some(html))
     }
 
+    /// Body for the "verify your email" email sent on signup.
     pub fn verify_email(link: &str) -> (String, String, Option<String>) {
         let subject = "Verify your email".to_string();
         let text = format!(

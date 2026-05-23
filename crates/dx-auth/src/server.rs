@@ -6,7 +6,8 @@
 //! work.
 //!
 //! The axum-level OAuth handlers (which aren't Dioxus server fns) live in
-//! [`crate::oauth`] and are mounted by [`crate::install`].
+//! the `crate::oauth` module (when the `_oauth-core` feature is on) and are
+//! mounted by [`crate::install`].
 
 use dioxus::prelude::*;
 
@@ -29,6 +30,7 @@ pub(crate) type MailExtension = axum::Extension<crate::mail::Mailer>;
 pub(crate) type ProvidersExtension =
     axum::Extension<std::sync::Arc<Vec<crate::wire::ProviderInfo>>>;
 
+/// Per-request session store axum exposes for the active backend.
 #[cfg(feature = "server")]
 pub type SessionStore = axum_session::Session<crate::pool::SessionPool>;
 
@@ -38,8 +40,11 @@ pub type SessionStore = axum_session::Session<crate::pool::SessionPool>;
 #[cfg(feature = "server")]
 #[derive(Debug, Clone, Default)]
 pub struct AuditCtx {
+    /// Capture/retention settings inherited from [`crate::AuthConfig`].
     pub config: crate::config::AuditConfig,
+    /// Client IP, when `config.capture_ip` is on and an address is available.
     pub ip: Option<String>,
+    /// Client `User-Agent`, when `config.capture_user_agent` is on.
     pub user_agent: Option<String>,
 }
 

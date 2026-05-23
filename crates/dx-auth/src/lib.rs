@@ -68,16 +68,20 @@ pub use config::RateLimitConfig;
 #[cfg(feature = "server")]
 pub use install::install;
 
-// Embedded schema. Consumers call `dx_auth::migrator().run(&pool).await?` at
-// startup; the `users`, `oauth_accounts`, `roles`, `audit_events`, `api_keys`,
-// ... tables this owns must exist before any of dx-auth's server fns run.
-// Feature-gated to the chosen backend so the sqlite and postgres dialects
-// don't both try to embed at compile time.
-//
-// Returned with `ignore_missing = true` so consumers can compose this migrator
-// with their own domain migrators in the same `_sqlx_migrations` table without
-// the cross-migrator "version X was previously applied but is missing in the
-// resolved migrations" error firing on every startup.
+/// Returns the embedded migrator that creates the `users`, `oauth_accounts`,
+/// `roles`, `audit_events`, `api_keys`, and related tables dx-auth owns.
+///
+/// Run this once at startup before installing the router:
+///
+/// ```rust,ignore
+/// dx_auth::migrator().run(&pool).await?;
+/// ```
+///
+/// Returned with `ignore_missing = true` so consumers can keep their own
+/// domain migrations in the same `_sqlx_migrations` table without the
+/// "version X was previously applied but is missing in the resolved
+/// migrations" cross-migrator error firing on every startup. The dialect
+/// (sqlite vs postgres) is selected by the active backend feature.
 #[cfg(all(feature = "server", feature = "sqlite", not(target_arch = "wasm32")))]
 pub fn migrator() -> sqlx::migrate::Migrator {
     let mut m = sqlx::migrate!("./migrations/sqlite");
@@ -85,6 +89,8 @@ pub fn migrator() -> sqlx::migrate::Migrator {
     m
 }
 
+/// Returns the embedded migrator. See the sqlite-feature variant for the
+/// full doc — same contract, postgres dialect.
 #[cfg(all(feature = "server", feature = "postgres", not(target_arch = "wasm32")))]
 pub fn migrator() -> sqlx::migrate::Migrator {
     let mut m = sqlx::migrate!("./migrations/postgres");

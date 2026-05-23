@@ -14,6 +14,7 @@ const CARD_CSS: Asset = asset!(
 #[css_module("/src/ui/components/card/dx-card.css")]
 struct Styles;
 
+/// Outer card surface. Compose with `Card*` subcomponents inside.
 #[component]
 pub fn Card(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -30,6 +31,7 @@ pub fn Card(
     }
 }
 
+/// Top section of a [`Card`] — typically holds title + description + action.
 #[component]
 pub fn CardHeader(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -46,6 +48,7 @@ pub fn CardHeader(
     }
 }
 
+/// Heading text inside a [`CardHeader`].
 #[component]
 pub fn CardTitle(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -62,6 +65,7 @@ pub fn CardTitle(
     }
 }
 
+/// Secondary text inside a [`CardHeader`].
 #[component]
 pub fn CardDescription(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -78,6 +82,7 @@ pub fn CardDescription(
     }
 }
 
+/// Right-aligned action slot inside a [`CardHeader`].
 #[component]
 pub fn CardAction(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -94,6 +99,7 @@ pub fn CardAction(
     }
 }
 
+/// Main body of a [`Card`].
 #[component]
 pub fn CardContent(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
@@ -110,6 +116,7 @@ pub fn CardContent(
     }
 }
 
+/// Bottom section of a [`Card`] — typically holds buttons or status.
 #[component]
 pub fn CardFooter(
     #[props(extends=GlobalAttributes)] attributes: Vec<Attribute>,
