@@ -18,26 +18,32 @@ ignore = []
 version = 2
 # Permissive licenses we accept by default. Add to this list rather than
 # silently allowing an unknown license — every entry here is a decision.
+# Each entry is paired with a representative crate from the current
+# dependency graph so a future reviewer can tell whether the allowance
+# is still needed.
 allow = [
-    "MIT",
-    "Apache-2.0",
-    "Apache-2.0 WITH LLVM-exception",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-    "Unicode-3.0",
-    "CC0-1.0",
-    "Zlib",
-    "MPL-2.0",
-    "0BSD",
-    "OpenSSL",
+    "MIT",                            # most of the ecosystem
+    "Apache-2.0",                     # most of the ecosystem
+    "Apache-2.0 WITH LLVM-exception", # ring
+    "BSD-2-Clause",                   # mach2
+    "BSD-3-Clause",                   # subtle, encoding_rs
+    "ISC",                            # rustls deps
+    "Unicode-3.0",                    # icu_*
+    "CC0-1.0",                        # tiny-keccak, notify
+    "Zlib",                           # foldhash, adler
+    "0BSD",                           # backtrace-on-stack-overflow
+    "CDLA-Permissive-2.0",            # webpki-roots (via reqwest, lettre)
+    "BSL-1.0",                        # xxhash-rust (via dioxus-fullstack-macro)
 ]
 confidence-threshold = 0.9
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Internal workspace deps like `dx-auth = { path = "..." }` show up as
+# wildcards because they carry no version field. That's the normal
+# workspace-member pattern — don't trip on it.
+allow-wildcard-paths = true
 # Add specific crates to deny here as they come up — e.g. an unmaintained
 # fork or a copy-left transitive that slipped in.
 deny = []
