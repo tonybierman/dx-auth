@@ -22,6 +22,25 @@
 #[cfg(feature = "ui")]
 pub mod ui;
 
+/// The default dx-components catalog theme — the single source of truth for the
+/// CSS custom properties (`--primary-color-*`, `--secondary-color-*`,
+/// `--focused-border-color`, …) that every catalog widget and auth screen under
+/// [`ui`] consumes via `var(...)`. Link it once near your app root, e.g.
+/// `document::Stylesheet { href: arium_dioxus::DEFAULT_THEME_CSS }`.
+///
+/// Consumers should link this asset rather than vendoring their own copy. To
+/// customize the palette, define the same custom-property names in your own
+/// stylesheet and link that *instead of* this default.
+#[cfg(feature = "ui")]
+pub use theme::DEFAULT_THEME_CSS;
+
+#[cfg(feature = "ui")]
+mod theme {
+    use dioxus::prelude::*;
+    /// See [`crate::DEFAULT_THEME_CSS`].
+    pub const DEFAULT_THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
+}
+
 pub mod server;
 
 // Shared wire types — always available (client + server), sourced from the

@@ -25,7 +25,6 @@ use arium_dioxus::ui::{
 };
 use arium_dioxus::{LoginOutcome, UserProfile, friendly_server_error};
 
-const THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
 const APP_CSS: Asset = asset!("/assets/app.css");
 
 /// Permission tokens guarding each tab inside `/admin`. Defined as
@@ -104,7 +103,9 @@ enum Route {
 
 fn app() -> Element {
     rsx! {
-        document::Stylesheet { href: THEME_CSS }
+        // Catalog theme tokens straight from the library — the canonical way
+        // for a consumer to pull these in (no vendored copy).
+        document::Stylesheet { href: arium_dioxus::DEFAULT_THEME_CSS }
         document::Stylesheet { href: APP_CSS }
 
         // Pre-mount the catalog widgets that only appear inside LoginPanel /
