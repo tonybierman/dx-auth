@@ -11,9 +11,12 @@ Cargo.lock
 **/emails/
 
 # Local secrets. SMTP creds, OAuth client secrets, the bootstrap-admin email,
-# anything else that lives in a per-environment dotenv file.
+# anything else that lives in a per-environment dotenv file. `.env.example`
+# is unignored so a tracked template (placeholder values, no secrets) is
+# allowed to land in the repo.
 .env
 .env.*
+!.env.example
 
 # Personal scratch notes
 TODO.md
