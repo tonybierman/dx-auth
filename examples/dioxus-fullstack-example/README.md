@@ -29,9 +29,9 @@ cd examples/dioxus-fullstack-example
 DX_AUTH_SKIP_EMAIL_VERIFICATION=1 dx serve
 ```
 
-Then open `http://localhost:8080`. A `auth.db` SQLite file is created on
-first run alongside the binary; `rm auth.db` to start fresh (you'll lose
-all accounts).
+Then open `http://localhost:8080`. A SQLite file is created on first run at
+`target/auth.db` in the workspace root; `rm target/auth.db` to start fresh
+(you'll lose all accounts).
 
 ## Optional env vars
 

@@ -48,11 +48,21 @@ fn main() {
 
     #[cfg(feature = "server")]
     dioxus::serve(|| async {
-        use sqlx::sqlite::SqlitePoolOptions;
+        use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
+        // Keep the dev database out of the source tree: write it under the
+        // workspace `target/` dir (already gitignored) instead of the
+        // example's cwd. CARGO_MANIFEST_DIR is resolved at compile time;
+        // `../../target` is the workspace target relative to this crate at
+        // `examples/dioxus-fullstack-example`.
+        let db_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/auth.db");
         let pool = SqlitePoolOptions::new()
             .max_connections(20)
-            .connect_with("sqlite://./auth.db?mode=rwc".parse()?)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(db_path)
+                    .create_if_missing(true),
+            )
             .await?;
         // arium owns the schema for `users`, `oauth_accounts`, `roles`,
         // `audit_events`, `api_keys`, ... — they're embedded in the arium

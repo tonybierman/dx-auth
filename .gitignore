@@ -2,8 +2,9 @@
 **/*.rs.bk
 Cargo.lock
 
-# Local sqlite DBs + dev-mode email fallback. The example app creates these
-# in its own cwd; library tests may create them under target/.
+# Local sqlite DBs + dev-mode email fallback. The example app writes its DB
+# under the workspace target/ dir; library tests may create them there too.
+# The patterns below also catch any stray auth.db left in a crate cwd.
 **/auth.db
 **/auth.db-journal
 **/auth.db-wal
