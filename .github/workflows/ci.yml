@@ -123,6 +123,12 @@ jobs:
   # License / source / bans policy enforcement. Configured in deny.toml.
   # Gating: deny.toml is curated; a failure here means a new transitive
   # introduced a license / source we haven't reviewed.
+  #
+  # We deliberately skip the `advisories` check here — that category
+  # tracks an upstream-controlled moving target, and gating on it would
+  # mean any fresh advisory in the RustSec DB blocks every PR until
+  # someone bumps a dep. Advisories are owned by the (advisory) `audit`
+  # job below, which uses cargo-audit directly.
   deny:
     name: cargo deny
     runs-on: ubuntu-latest
@@ -130,7 +136,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check
+          command: check bans licenses sources
           arguments: --all-features
 
   # Unused dependency detection.
