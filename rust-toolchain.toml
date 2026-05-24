@@ -1,0 +1,14 @@
+# Pinned toolchain — the single source of truth for which Rust builds this
+# workspace, locally and in CI. Bumping the compiler is then a deliberate,
+# reviewable one-line PR (and its own clippy/lint churn) instead of silently
+# drifting whenever GitHub's `stable` advances under our gating clippy job.
+#
+# This file takes precedence over `rustup default` (what `dtolnay/rust-toolchain`
+# sets), so it wins in CI too. The CI jobs run `rustup show` to provision the
+# toolchain named here — which is why `components` and `targets` are declared
+# below rather than via each job's action inputs.
+[toolchain]
+channel = "1.95.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

@@ -1,6 +1,5 @@
 /target
 **/*.rs.bk
-Cargo.lock
 
 # Local sqlite DBs + dev-mode email fallback. The example app writes its DB
 # under the workspace target/ dir; library tests may create them there too.

@@ -1,0 +1,47 @@
+# Dependabot keeps the routine, compatible churn batched into a few reviewable
+# PRs a week. CI (test + feature-matrix + wasm + clippy + audit + deny) is the
+# gate on each one. Cargo.lock is committed, so Dependabot updates the locked
+# versions (and widens a `^x.y` requirement only when the range can't admit the
+# new release). It does NOT manage git dependencies (dioxus-primitives), which
+# we pin by `rev` and bump by hand.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # The two UI frameworks get their own isolated PRs. A dioxus/leptos bump
+      # is the one most likely to carry breaking changes (0.x minor = breaking),
+      # so it should land on its own, separately reviewable, with the upstream
+      # changelog in hand — never buried inside a batch of unrelated bumps.
+      dioxus:
+        patterns:
+          - "dioxus"
+          - "dioxus-*"
+      leptos:
+        patterns:
+          - "leptos"
+          - "leptos_*"
+      # Everything else — the engine's backend crates (sqlx, axum, argon2,
+      # lettre, oauth2, reqwest, …) and small utilities — batched together.
+      rust-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "dioxus"
+          - "dioxus-*"
+          - "leptos"
+          - "leptos_*"
+
+  # Keep the workflow actions (checkout, rust-cache, cargo-deny, …) current too;
+  # one grouped PR a week.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"

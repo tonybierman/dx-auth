@@ -22,7 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      # Provisions the toolchain pinned in rust-toolchain.toml (channel +
+      # components + wasm target), so every job builds on the same compiler.
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci
@@ -66,7 +69,8 @@ jobs:
           - { package: arium-leptos, features: "ssr,postgres,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens" }
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: features-${{ matrix.package }}-${{ matrix.features }}
@@ -86,9 +90,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: wasm
@@ -105,14 +108,55 @@ jobs:
             --no-default-features \
             --features ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens
 
+  # Run the wasm client-surface logic tests (tests/wasm_client.rs) in Node via
+  # wasm-bindgen-test-runner — no browser. The `wasm` job above only *checks*
+  # the client build; this proves the re-exported wire types actually serde
+  # round-trip (and, for Leptos, that `friendly_server_error` runs) on wasm32.
+  # The runner must match the `wasm-bindgen` crate version exactly, so we derive
+  # it from the resolved graph instead of pinning it by hand — a wasm-bindgen
+  # bump then needs no edit here.
+  wasm-test:
+    name: wasm client tests (node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install pinned toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
+      - name: Install matching wasm-bindgen-test-runner
+        run: |
+          wb_ver="$(cargo metadata --format-version 1 \
+            | jq -r '[.packages[] | select(.name == "wasm-bindgen") | .version] | first')"
+          echo "wasm-bindgen resolved to $wb_ver"
+          cargo install --locked wasm-bindgen-cli --version "$wb_ver"
+      - name: arium-leptos (hydrate)
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          cargo test --package arium-leptos \
+            --target wasm32-unknown-unknown \
+            --no-default-features \
+            --features hydrate,ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens \
+            --test wasm_client
+      - name: arium-dioxus (client)
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          cargo test --package arium-dioxus \
+            --target wasm32-unknown-unknown \
+            --no-default-features \
+            --features ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens \
+            --test wasm_client
+
   fmt:
     name: cargo fmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+      - name: Install pinned toolchain
+        run: rustup show
       - run: cargo fmt --all -- --check
 
   clippy:
@@ -120,9 +164,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci
@@ -156,7 +199,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: tools
@@ -198,7 +242,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install pinned toolchain
+        run: rustup show
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: tools
