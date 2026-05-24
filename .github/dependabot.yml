@@ -24,8 +24,21 @@ updates:
         patterns:
           - "leptos"
           - "leptos_*"
-      # Everything else — the engine's backend crates (sqlx, axum, argon2,
-      # lettre, oauth2, reqwest, …) and small utilities — batched together.
+      # The sqlx + axum_session stack moves in lockstep and gates itself:
+      # axum_session{,_auth,_sqlx} pin an exact sqlx version, so a sqlx
+      # major bump that lands before the session crates catch up splits the
+      # lockfile into two sqlx versions and won't compile. Isolate them in
+      # one PR so that coupling is visible and reviewable on its own, instead
+      # of a green serde_json bump masking a breaking sqlx jump.
+      sqlx-session:
+        patterns:
+          - "sqlx"
+          - "sqlx-*"
+          - "axum_session"
+          - "axum_session_*"
+      # Everything else — the rest of the engine's backend crates (axum,
+      # argon2, lettre, oauth2, reqwest, …) and small utilities — batched
+      # together.
       rust-dependencies:
         patterns:
           - "*"
@@ -34,6 +47,10 @@ updates:
           - "dioxus-*"
           - "leptos"
           - "leptos_*"
+          - "sqlx"
+          - "sqlx-*"
+          - "axum_session"
+          - "axum_session_*"
 
   # Keep the workflow actions (checkout, rust-cache, cargo-deny, …) current too;
   # one grouped PR a week.
