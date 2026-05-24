@@ -28,7 +28,7 @@ arium-dioxus = { path = "../../crates/arium-dioxus", default-features = false, f
 # Server-side deps the example still touches directly (sqlx for the pool +
 # migrations, axum_session_auth for the Auth/Rights check in get_permissions).
 axum = { version = "0.8.4", default-features = false, optional = true, features = ["macros"] }
-sqlx = { version = "0.9.0", features = [
+sqlx = { version = "0.8.6", features = [
     "macros",
     "migrate",
     "sqlite",
