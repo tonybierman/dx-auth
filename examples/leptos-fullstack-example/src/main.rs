@@ -8,7 +8,9 @@ async fn main() -> anyhow::Result<()> {
     use axum::routing::post;
     use leptos::config::get_configuration;
     use leptos::prelude::*;
-    use leptos_axum::{LeptosRoutes, file_and_error_handler, generate_route_list, handle_server_fns};
+    use leptos_axum::{
+        LeptosRoutes, file_and_error_handler, generate_route_list, handle_server_fns,
+    };
     use leptos_fullstack_example::app::App;
     use leptos_fullstack_example::shell;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};

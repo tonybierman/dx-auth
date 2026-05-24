@@ -5,13 +5,15 @@ use arium_leptos::server::{
     login_with_password, logout, register_with_password, resend_verification_email,
 };
 use arium_leptos::ui::components::button::{Button, ButtonVariant};
-use arium_leptos::ui::components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
+use arium_leptos::ui::components::card::{
+    Card, CardContent, CardDescription, CardHeader, CardTitle,
+};
 use arium_leptos::ui::components::tabs::{TabContent, TabList, TabTrigger, Tabs};
 use arium_leptos::ui::{
     AccountSettings, AdminRoleEditor, AdminRoleList, AdminUserDetail, AdminUserList, ApiTokens,
-    AuditLog, ForgotPassword, LoginPanel, LoginSubmit, MfaChallenge, MfaSetup, OAuthProvidersProvider,
-    PermissionGate, PermissionsProvider, Policy, RequirePermission, ResetPassword, SubmitKind,
-    VerifyEmail, use_oauth_providers, use_permissions,
+    AuditLog, ForgotPassword, LoginPanel, LoginSubmit, MfaChallenge, MfaSetup,
+    OAuthProvidersProvider, PermissionGate, PermissionsProvider, Policy, RequirePermission,
+    ResetPassword, SubmitKind, VerifyEmail, use_oauth_providers, use_permissions,
 };
 use arium_leptos::wire::UserProfile;
 use arium_leptos::{LoginOutcome, friendly_server_error};
@@ -84,7 +86,12 @@ fn Home() -> impl IntoView {
 
     let on_login = Callback::new(move |sub: LoginSubmit| {
         auth_error.set(String::new());
-        let LoginSubmit { kind, email, password, remember } = sub;
+        let LoginSubmit {
+            kind,
+            email,
+            password,
+            remember,
+        } = sub;
         let email_pending = email.clone();
         spawn_local(async move {
             let result = match kind {
@@ -260,20 +267,14 @@ fn VerificationPending(email: String, on_back: Callback<()>) -> impl IntoView {
 #[component]
 fn ResetRoute() -> impl IntoView {
     let query = use_query_map();
-    let token = query
-        .read_untracked()
-        .get("token")
-        .unwrap_or_default();
+    let token = query.read_untracked().get("token").unwrap_or_default();
     view! { <ResetPassword token=token /> }
 }
 
 #[component]
 fn VerifyRoute() -> impl IntoView {
     let query = use_query_map();
-    let token = query
-        .read_untracked()
-        .get("token")
-        .unwrap_or_default();
+    let token = query.read_untracked().get("token").unwrap_or_default();
     view! { <VerifyEmail token=token /> }
 }
 

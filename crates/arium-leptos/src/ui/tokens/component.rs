@@ -1,5 +1,7 @@
 use crate::friendly_server_error;
-use crate::server::{create_api_token, get_current_user_profile, list_api_tokens, revoke_api_token};
+use crate::server::{
+    create_api_token, get_current_user_profile, list_api_tokens, revoke_api_token,
+};
 use crate::ui::components::button::{Button, ButtonVariant};
 use crate::ui::components::card::{Card, CardContent, CardDescription, CardHeader, CardTitle};
 use crate::ui::components::input::Input;

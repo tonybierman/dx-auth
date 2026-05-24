@@ -32,10 +32,7 @@ pub fn CardTitle(#[prop(optional, into)] class: String, children: Children) -> i
 
 /// Secondary text inside a [`CardHeader`].
 #[component]
-pub fn CardDescription(
-    #[prop(optional, into)] class: String,
-    children: Children,
-) -> impl IntoView {
+pub fn CardDescription(#[prop(optional, into)] class: String, children: Children) -> impl IntoView {
     view! {
         <div class=format!("dx-card-description {class}") data-slot="card-description">
             {children()}

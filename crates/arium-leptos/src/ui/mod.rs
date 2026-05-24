@@ -48,14 +48,14 @@ pub use forgot_password::ForgotPassword;
 pub use login_panel::{LoginPanel, LoginProvider, LoginSubmit, SubmitKind};
 #[cfg(feature = "mfa")]
 pub use mfa::{MfaChallenge, MfaSetup};
-#[cfg(feature = "mail")]
-pub use reset_password::ResetPassword;
-#[cfg(feature = "tokens")]
-pub use tokens::ApiTokens;
-pub use verify_email::VerifyEmail;
 pub use oauth_providers::{OAuthProvidersProvider, use_oauth_providers};
 pub use permissions::{
     PermissionGate, PermissionSet, PermissionsProvider, Policy, RequirePermission, UsePermissions,
     use_permissions,
 };
 pub use require_auth::RequireAuth;
+#[cfg(feature = "mail")]
+pub use reset_password::ResetPassword;
+#[cfg(feature = "tokens")]
+pub use tokens::ApiTokens;
+pub use verify_email::VerifyEmail;

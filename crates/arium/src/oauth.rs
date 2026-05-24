@@ -179,15 +179,13 @@ pub async fn upsert_oauth_user(
         // handle (assigned once — a rename on the provider must not silently
         // change it), and `display_name` is user-editable (refreshing it would
         // clobber a name the user chose in account settings).
-        sqlx::query(
-            "UPDATE users SET email = $1, avatar_url = $2, html_url = $3 WHERE id = $4",
-        )
-        .bind(profile.email.as_deref())
-        .bind(profile.avatar_url.as_deref())
-        .bind(profile.html_url.as_deref())
-        .bind(user_id)
-        .execute(db)
-        .await?;
+        sqlx::query("UPDATE users SET email = $1, avatar_url = $2, html_url = $3 WHERE id = $4")
+            .bind(profile.email.as_deref())
+            .bind(profile.avatar_url.as_deref())
+            .bind(profile.html_url.as_deref())
+            .bind(user_id)
+            .execute(db)
+            .await?;
         return Ok(user_id);
     }
 

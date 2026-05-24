@@ -84,14 +84,14 @@ pub fn AdminUserList(on_select: Callback<i64>) -> impl IntoView {
                                     <PaginationItem>
                                         <PaginationPrevious on_click=Callback::new(move |_| {
                                             if page.get_untracked() > 0 {
-                                                page.set(page.get_untracked() - 1);
+                                                page.set(page.get_untracked().saturating_sub(1));
                                             }
                                         }) />
                                     </PaginationItem>
                                     <PaginationItem>
                                         <PaginationNext on_click=Callback::new(move |_| {
                                             if !last_page {
-                                                page.set(page.get_untracked() + 1);
+                                                page.set(page.get_untracked().saturating_add(1));
                                             }
                                         }) />
                                     </PaginationItem>
@@ -120,7 +120,12 @@ fn AdminUserRow(
     let role_labels: Vec<String> = user
         .role_ids
         .iter()
-        .map(|r| role_names.get(r).cloned().unwrap_or_else(|| format!("role:{r}")))
+        .map(|r| {
+            role_names
+                .get(r)
+                .cloned()
+                .unwrap_or_else(|| format!("role:{r}"))
+        })
         .collect();
     let (status_label, status_variant) = if user.deleted {
         ("deleted", BadgeVariant::Destructive)

@@ -120,23 +120,23 @@ pub fn AuditLog() -> impl IntoView {
                                     variant=ButtonVariant::Ghost
                                     on_click=Callback::new(move |_| {
                                         if page.get_untracked() > 0 {
-                                            let p = page.get_untracked() - 1;
+                                            let p = page.get_untracked().saturating_sub(1);
                                             page.set(p);
-                                            applied.update(|q| q.offset = p * page_size);
+                                            applied.update(|q| q.offset = p.saturating_mul(page_size));
                                             refetch.update(|n| *n = n.wrapping_add(1));
                                         }
                                     })
                                 >
                                     "← Prev"
                                 </Button>
-                                <span>{move || format!(" Page {} ", page.get() + 1)}</span>
+                                <span>{move || format!(" Page {} ", page.get().saturating_add(1))}</span>
                                 <Button
                                     variant=ButtonVariant::Ghost
                                     on_click=Callback::new(move |_| {
                                         if row_count == page_size {
-                                            let p = page.get_untracked() + 1;
+                                            let p = page.get_untracked().saturating_add(1);
                                             page.set(p);
-                                            applied.update(|q| q.offset = p * page_size);
+                                            applied.update(|q| q.offset = p.saturating_mul(page_size));
                                             refetch.update(|n| *n = n.wrapping_add(1));
                                         }
                                     })

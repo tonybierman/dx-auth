@@ -97,10 +97,10 @@ pub fn PaginationLink(
             aria-current=move || if is_active.get() { "page" } else { "" }
             aria-label=aria_label
             on:click=move |ev| {
-                if !disabled.get_untracked() {
-                    if let Some(cb) = on_click {
-                        cb.run(ev);
-                    }
+                if !disabled.get_untracked()
+                    && let Some(cb) = on_click
+                {
+                    cb.run(ev);
                 }
             }
         >

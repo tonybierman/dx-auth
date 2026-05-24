@@ -36,6 +36,6 @@ pub fn OAuthProvidersProvider(children: ChildrenFn) -> impl IntoView {
 pub fn use_oauth_providers() -> Signal<Vec<LoginProvider>> {
     match use_context::<OAuthProvidersCtx>() {
         Some(ctx) => ctx.providers.into(),
-        None => Signal::derive(|| Vec::new()),
+        None => Signal::derive(Vec::new),
     }
 }

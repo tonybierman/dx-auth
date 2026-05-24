@@ -21,10 +21,10 @@ use arium_wire::{
     AccountView, AdminRoleDetail, AdminUserDetail, AdminUserSummary, AuditEventView, AuditQuery,
     LoginOutcome, ProviderInfo, UserProfile,
 };
-#[cfg(feature = "mfa")]
-use arium_wire::{MfaSetupView, MfaStatusView};
 #[cfg(feature = "tokens")]
 use arium_wire::{ApiTokenView, CreateApiTokenResponse};
+#[cfg(feature = "mfa")]
+use arium_wire::{MfaSetupView, MfaStatusView};
 
 #[cfg(feature = "ssr")]
 use arium::auth;
@@ -804,7 +804,10 @@ pub async fn admin_get_user(user_id: i64) -> Result<Option<AdminUserDetail>, Ser
     let db: DbExtension = leptos_axum::extract().await?;
 
     require_admin_perm(&auth, &db.0, "admin:users:read").await?;
-    let Some(row) = auth::get_user_for_admin(&db.0, user_id).await.map_err(sfn)? else {
+    let Some(row) = auth::get_user_for_admin(&db.0, user_id)
+        .await
+        .map_err(sfn)?
+    else {
         return Ok(None);
     };
     let permissions = auth::list_permissions_for_user(&db.0, user_id)
