@@ -2,7 +2,7 @@
 //! descendants via context. Hoisting the fetch here (rather than inside the
 //! login route) means it survives the login surface mounting/unmounting across
 //! sign-in / sign-out cycles. Drop it near the top of your app alongside
-//! [`super::PermissionsProvider`], then read the list with
+//! [`crate::ui::permissions::PermissionsProvider`], then read the list with
 //! [`use_oauth_providers`].
 
 use leptos::prelude::*;

@@ -195,7 +195,7 @@ pub struct AdminRoleDetail {
     pub permissions: Vec<String>,
 }
 
-// ---- Audit log wire types (Phase 12) ----
+// ---- Audit log wire types ----
 
 /// One row from the audit log. `details` is whatever JSON the emitter
 /// chose to attach (e.g. `{"method":"password","remember_me":true}`).

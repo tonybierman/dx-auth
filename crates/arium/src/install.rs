@@ -17,6 +17,8 @@ use crate::config::AuthConfig;
 ///
 /// What this does, in order:
 ///
+/// 0. Reconciles the bootstrap admin from the environment (idempotent; grants
+///    the `admin` role to the configured email if that user already exists).
 /// 1. Mounts `/auth/{provider}/login` + `/auth/{provider}/callback` routes for
 ///    every provider registered on the config's OAuth registry. With no
 ///    providers (or when `_oauth-core` is off) this is a no-op.
@@ -25,7 +27,8 @@ use crate::config::AuthConfig;
 ///    is available (so the first request under `dx serve` doesn't 500).
 /// 3. Adds `axum::Extension`s for the [`Pool`](crate::pool::Pool), the list
 ///    of `ProviderInfo` available_providers serves, and the `Mailer` (when
-///    the `mail` feature is on).
+///    the `mail` feature is on), plus a background task that prunes the audit
+///    log on the configured retention (skipped when retention is unlimited).
 /// 4. Adds the `axum_session_auth::AuthSessionLayer` with the anonymous Guest
 ///    user (`id = 1`).
 /// 5. Adds the `axum_session::SessionLayer` with cookie / lifetime settings

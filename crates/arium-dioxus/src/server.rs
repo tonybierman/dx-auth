@@ -557,7 +557,7 @@ pub async fn get_mfa_status() -> Result<MfaStatusView> {
 }
 
 // ============================================================
-// API tokens (Phase 14)
+// API tokens
 // ============================================================
 
 /// Create a new API token for the current user. The cleartext secret is
@@ -680,7 +680,7 @@ fn json_string(raw: &str) -> String {
 }
 
 // ============================================================
-// Admin (Phase 11b)
+// Admin
 // ============================================================
 
 use arium_wire::{
@@ -919,7 +919,7 @@ fn json_str(s: &str) -> String {
 }
 
 // ============================================================
-// Account self-service (Phase 11c)
+// Account self-service
 // ============================================================
 
 /// What the AccountSettings UI renders against.

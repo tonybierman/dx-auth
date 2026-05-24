@@ -3,9 +3,8 @@
 //! [`AuditCtx`] pulls audit-relevant request metadata (client IP, User-Agent)
 //! out of the request according to the active [`AuditConfig`](crate::config::AuditConfig);
 //! [`SessionStore`] is the per-request session handle for the active backend.
-//! Both are plain axum primitives with no UI-framework dependency, so any
-//! adapter (Dioxus today, Leptos/axum later) can reuse them as server-fn /
-//! handler extractors.
+//! Both are plain axum primitives with no UI-framework dependency, so the
+//! Dioxus and Leptos adapters reuse them as server-fn / handler extractors.
 
 /// Per-request session store axum exposes for the active backend.
 pub type SessionStore = axum_session::Session<crate::pool::SessionPool>;
@@ -23,6 +22,11 @@ pub struct AuditCtx {
 }
 
 impl AuditCtx {
+    /// Writes one audit row, stamping it with the IP and User-Agent captured
+    /// at extraction time. `actor_id` is who performed the action, `target_id`
+    /// who it acted on (often the same), and `details` an optional JSON blob.
+    /// Best-effort: a write failure is logged, not propagated — see
+    /// [`record_or_log`](crate::auth::audit::record_or_log).
     pub async fn record(
         &self,
         db: &crate::pool::Pool,

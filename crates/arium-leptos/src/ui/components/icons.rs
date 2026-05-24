@@ -33,6 +33,8 @@ fn Svg(
     }
 }
 
+/// Checkmark glyph — marks the selected option in [`super::select`] and the
+/// checked state in [`super::checkbox`].
 #[component]
 pub fn IconCheck(
     #[prop(default = "1rem")] size: &'static str,
@@ -41,6 +43,7 @@ pub fn IconCheck(
     view! { <Svg size=size stroke=stroke><path d="M20 6 9 17l-5-5" /></Svg> }
 }
 
+/// Downward chevron — the expand affordance on [`super::select`].
 #[component]
 pub fn IconChevronDown(
     #[prop(default = "1rem")] size: &'static str,
@@ -50,16 +53,20 @@ pub fn IconChevronDown(
     view! { <Svg size=size class=class stroke=stroke><path d="m6 9 6 6 6-6" /></Svg> }
 }
 
+/// Leftward chevron — the "previous page" control in [`super::pagination`].
 #[component]
 pub fn IconChevronLeft(#[prop(default = "1rem")] size: &'static str) -> impl IntoView {
     view! { <Svg size=size><path d="m15 18-6-6 6-6" /></Svg> }
 }
 
+/// Rightward chevron — the "next page" control in [`super::pagination`].
 #[component]
 pub fn IconChevronRight(#[prop(default = "1rem")] size: &'static str) -> impl IntoView {
     view! { <Svg size=size><path d="m9 18 6-6-6-6" /></Svg> }
 }
 
+/// Horizontal ellipsis — the gap marker between page-number runs in
+/// [`super::pagination`].
 #[component]
 pub fn IconEllipsis(#[prop(default = "1rem")] size: &'static str) -> impl IntoView {
     view! {

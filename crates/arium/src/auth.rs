@@ -3,7 +3,7 @@
 //! helpers every server fn uses to identify the caller.
 //!
 //! The session/user plumbing is adapted from the `axum-session-auth` examples
-//! and tweaked to fit the dioxus-fullstack request lifecycle.
+//! and tweaked to fit the axum server-fn request lifecycle the adapters share.
 
 use crate::pool::Pool;
 use crate::pool::SessionPool;
@@ -598,7 +598,7 @@ pub async fn list_permissions_for_role(db: &Pool, role_id: i64) -> anyhow::Resul
     Ok(rows.into_iter().map(|(t,)| t).collect())
 }
 
-// ---- Account self-service helpers (called by Phase 11c server fns) ----
+// ---- Account self-service helpers (called by the account server fns) ----
 
 /// Look up the current password hash for the given user (None for OAuth-only
 /// accounts). Used by `change_password` to verify the old password before
@@ -1245,7 +1245,7 @@ pub async fn find_unverified_user_id(db: &Pool, email: &str) -> anyhow::Result<O
 }
 
 // ============================================================
-// Audit log (Phase 12)
+// Audit log
 // ============================================================
 
 /// Library helpers for writing and reading the audit log. The set of
@@ -1492,7 +1492,7 @@ pub mod audit {
 }
 
 // ============================================================
-// API tokens (Phase 14)
+// API tokens
 // ============================================================
 
 /// Personal API tokens that bypass the session-cookie auth path — used by
@@ -1621,11 +1621,9 @@ pub mod tokens {
             .collect())
     }
 
-    /// Format a unix-seconds timestamp as `YYYY-MM-DD UTC`. The audit module
-    /// has a comparable helper but uses `chrono::TimeZone::timestamp_opt`;
-    /// this one is identical in behaviour but lives next to its only
-    /// caller so the dependency direction stays one-way (`tokens` doesn't
-    /// import from `audit`).
+    /// Format a unix-seconds timestamp as `YYYY-MM-DD UTC`. Deliberately
+    /// duplicates the audit module's helper so `tokens` stays independent of
+    /// `audit`.
     fn format_unix_date(secs: i64) -> String {
         use chrono::TimeZone;
         chrono::Utc

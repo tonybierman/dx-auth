@@ -57,7 +57,8 @@ impl Default for AuditConfig {
     }
 }
 
-/// Everything the library needs to wire itself into a Dioxus fullstack app.
+/// Everything [`crate::install`] needs to wire the auth engine onto an
+/// `axum::Router` — independent of any UI framework.
 #[derive(Clone)]
 pub struct AuthConfig {
     pub(crate) pool: Pool,

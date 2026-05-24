@@ -5,7 +5,7 @@
 //! fought a remount/`OnceLock` race to keep them in `<head>`. Leptos has no
 //! css-module hashing and no such race: the CSS is `include_str!`-bundled into
 //! the binary and emitted once here (mounted for the whole session by
-//! [`super::PermissionsProvider`]). Inline `<style>` applies globally, on both
+//! [`crate::ui::permissions::PermissionsProvider`]). Inline `<style>` applies globally, on both
 //! the SSR and hydrate render, and the markup is identical on both sides so it
 //! hydrates cleanly.
 
@@ -55,7 +55,7 @@ fn bundle() -> String {
 }
 
 /// Emits a single `<style>` block with the full catalog + auth CSS. Rendered by
-/// [`super::PermissionsProvider`], so consumers don't normally call it directly
+/// [`crate::ui::permissions::PermissionsProvider`], so consumers don't normally call it directly
 /// — but it's `pub` for apps that embed the auth UI without the RBAC plumbing.
 #[component]
 pub fn AuthStylesheets() -> impl IntoView {
