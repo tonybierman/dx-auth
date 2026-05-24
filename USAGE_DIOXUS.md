@@ -33,6 +33,12 @@ fn main() {
         if let Some(gh) = arium_dioxus::oauth::github::GithubProvider::from_env()? {
             builder = builder.oauth_provider(gh)?;
         }
+        // OIDC presets (feature `oauth-google` / `oauth-microsoft`) are async —
+        // they run discovery when constructed:
+        #[cfg(feature = "oauth-google")]
+        if let Some(google) = arium_dioxus::oauth::google::GoogleProvider::from_env().await? {
+            builder = builder.oauth_provider(google)?;
+        }
 
         let router = dioxus::server::router(app)
             // .merge(my_sse_router)

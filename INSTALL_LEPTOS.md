@@ -44,6 +44,10 @@ arium-leptos = { version = "0.1", default-features = false, features = [
   "mfa",
   "mail",
   "oauth-github",
+  # Opt-in OIDC logins (off by default — pull in the openidconnect crate):
+  # "oauth-google",      # Google preset
+  # "oauth-microsoft",   # Microsoft / Entra preset
+  # "oauth-oidc",        # generic OIDC issuer (GitLab, Okta, Auth0, Keycloak, …)
   "ratelimit",
   "tokens",
 ] }

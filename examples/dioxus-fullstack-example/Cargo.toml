@@ -52,6 +52,11 @@ server = [
 ]
 web = ["dioxus/web", "dep:dioxus-web"]
 
+# Optional: Google sign-in via the OIDC engine. Off by default (keeps the
+# openidconnect crate out of the default build). Enable with
+# `dx serve --features oauth-google` plus GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.
+oauth-google = ["server", "arium-dioxus/oauth-google"]
+
 # dioxus-web is dragged in only for its `["hydrate"]` feature, which wires
 # the wasm-side hydration runtime — there's no `dioxus_web::*` call site for
 # machete to find, but dropping the dep would silently disable hydration.

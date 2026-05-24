@@ -59,6 +59,11 @@ hydrate = [
     "dep:console_error_panic_hook",
 ]
 
+# Optional: Google sign-in via the OIDC engine. Off by default (keeps the
+# openidconnect crate out of the default build). Enable with
+# `--features oauth-google` plus GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.
+oauth-google = ["ssr", "arium-leptos/oauth-google"]
+
 [package.metadata.leptos]
 output-name = "leptos-fullstack-example"
 site-root = "target/site"

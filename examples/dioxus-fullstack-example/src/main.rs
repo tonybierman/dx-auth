@@ -86,6 +86,22 @@ fn main() {
                 builder
             }
         };
+        // Google sign-in via the OIDC engine (build with `--features oauth-google`).
+        // `from_env` is async — it runs OIDC discovery against accounts.google.com.
+        #[cfg(feature = "oauth-google")]
+        let builder = match arium_dioxus::oauth::google::GoogleProvider::from_env().await? {
+            Some(google) => {
+                println!("[startup] Google OAuth: enabled");
+                builder.oauth_provider(google)?
+            }
+            None => {
+                println!(
+                    "[startup] Google OAuth: disabled (set GOOGLE_CLIENT_ID + \
+                     GOOGLE_CLIENT_SECRET to enable)"
+                );
+                builder
+            }
+        };
 
         let cfg = builder.build()?;
 

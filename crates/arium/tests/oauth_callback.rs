@@ -45,6 +45,7 @@ struct MockProvider {
     token_url: String,
     redirect_url: String,
     profile: NormalizedProfile,
+    use_pkce: bool,
 }
 
 #[async_trait]
@@ -73,6 +74,9 @@ impl OAuthProvider for MockProvider {
     fn scopes(&self) -> &[&str] {
         &["read:user", "user:email"]
     }
+    fn use_pkce(&self) -> bool {
+        self.use_pkce
+    }
     async fn fetch_profile(
         &self,
         _http: &reqwest::Client,
@@ -95,6 +99,10 @@ struct TestApp {
 }
 
 async fn boot(mock_token_url: &str, profile: NormalizedProfile) -> TestApp {
+    boot_inner(mock_token_url, profile, false).await
+}
+
+async fn boot_inner(mock_token_url: &str, profile: NormalizedProfile, use_pkce: bool) -> TestApp {
     let pool = common::pool().await;
     let mailer = Mailer::from_env().expect("mailer build");
 
@@ -105,6 +113,7 @@ async fn boot(mock_token_url: &str, profile: NormalizedProfile) -> TestApp {
         token_url: mock_token_url.to_string(),
         redirect_url: "http://127.0.0.1/auth/test/callback".to_string(),
         profile,
+        use_pkce,
     };
 
     let cfg = AuthConfig::builder(pool.clone(), mailer)
@@ -529,4 +538,104 @@ async fn token_request_carries_client_credentials_and_code() {
     // Mock's `.expect(1)` is verified on drop.
     drop(app);
     drop(mock);
+}
+
+// ============================================================
+// PKCE (RFC 7636) — opt-in via `use_pkce()` on the default begin/finish path.
+// ============================================================
+
+#[tokio::test]
+async fn pkce_off_by_default_omits_code_challenge() {
+    // The standard MockProvider has use_pkce = false → no PKCE params.
+    let app = boot("http://localhost:1/unused", standard_profile()).await;
+    let resp = app
+        .client
+        .get(format!("{}/auth/test/login", app.base_url))
+        .send()
+        .await
+        .unwrap();
+    let loc = resp.headers().get("location").unwrap().to_str().unwrap();
+    assert!(
+        !loc.contains("code_challenge"),
+        "no PKCE expected by default, got {loc}"
+    );
+}
+
+#[tokio::test]
+async fn pkce_round_trips_challenge_in_authorize_and_verifier_at_token() {
+    // With PKCE enabled, the authorize URL must carry a sha256 challenge, and
+    // the subsequent token request must replay the matching code_verifier.
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .and(wiremock::matchers::body_string_contains("code_verifier="))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "test-access-token",
+            "token_type": "bearer",
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
+    let app = boot_inner(&format!("{}/token", mock.uri()), standard_profile(), true).await;
+
+    let resp = app
+        .client
+        .get(format!("{}/auth/test/login", app.base_url))
+        .send()
+        .await
+        .unwrap();
+    let loc = resp.headers().get("location").unwrap().to_str().unwrap();
+    let parsed = url::Url::parse(loc).unwrap();
+    let q: std::collections::HashMap<_, _> = parsed.query_pairs().collect();
+    assert!(q.contains_key("code_challenge"), "loc={loc}");
+    assert_eq!(
+        q.get("code_challenge_method").map(|s| s.as_ref()),
+        Some("S256")
+    );
+    let state = q.get("state").map(|s| s.to_string()).unwrap();
+
+    let resp = app
+        .client
+        .get(format!(
+            "{}/auth/test/callback?code=fake-code&state={state}",
+            app.base_url
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 303);
+    // The `body_string_contains("code_verifier=")` matcher + `.expect(1)` prove
+    // the verifier was replayed.
+    drop(app);
+    drop(mock);
+}
+
+#[tokio::test]
+async fn github_provider_pkce_opt_in_adds_code_challenge() {
+    // The GitHub provider gains a `with_pkce` opt-in over the default flow.
+    use arium::oauth::github::GithubProvider;
+
+    let off = GithubProvider::new(
+        "id".to_string(),
+        "secret".to_string(),
+        "http://localhost/cb".to_string(),
+    );
+    let (url_off, attempt_off) = off.begin().unwrap();
+    assert!(attempt_off.pkce_verifier.is_none());
+    assert!(!url_off.contains("code_challenge"), "url_off={url_off}");
+
+    let on = GithubProvider::new(
+        "id".to_string(),
+        "secret".to_string(),
+        "http://localhost/cb".to_string(),
+    )
+    .with_pkce(true);
+    let (url_on, attempt_on) = on.begin().unwrap();
+    assert!(attempt_on.pkce_verifier.is_some());
+    assert!(url_on.contains("code_challenge="), "url_on={url_on}");
+    assert!(
+        url_on.contains("code_challenge_method=S256"),
+        "url_on={url_on}"
+    );
 }

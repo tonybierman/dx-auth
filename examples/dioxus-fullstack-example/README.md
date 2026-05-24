@@ -18,6 +18,8 @@ fresh).
 - Set `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` to enable the GitHub
   button; set `SMTP_HOST` (+ creds) for real email. See
   [CONFIG_DIOXUS.md](../../CONFIG_DIOXUS.md#environment-variables) for the full list.
+- For Google sign-in (OIDC), run `dx serve --features oauth-google` and set
+  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`.
 
 Needs the [Dioxus CLI](https://dioxuslabs.com/learn/0.7/getting_started/)
 (`dx`).

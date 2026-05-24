@@ -23,13 +23,19 @@ postgres = ["sqlx/postgres", "axum_session_sqlx/postgres"]
 # ones off to slim the build down (e.g. an OAuth-only app can drop
 # `mail` and the email-send code disappears).
 #
-# Internal helper: any per-provider feature (`oauth-github`, future
+# Internal helper: any per-provider feature (`oauth-github`,
 # `oauth-google`, ...) enables `_oauth-core`, which pulls in the shared
 # oauth2 / reqwest deps and gates the trait + registry + generic axum
 # handlers in `src/oauth.rs`. Per-provider impl modules are then gated by
 # their own feature.
 _oauth-core = ["dep:oauth2", "dep:reqwest"]
 oauth-github = ["_oauth-core"]
+# OIDC engine + presets (opt-in; off by default). `oauth-oidc` pulls in the
+# `openidconnect` crate and gates the generic `OidcProvider`; the `oauth-google`
+# and `oauth-microsoft` presets are thin wrappers over it.
+oauth-oidc = ["_oauth-core", "dep:openidconnect"]
+oauth-google = ["oauth-oidc"]
+oauth-microsoft = ["oauth-oidc"]
 mfa = ["dep:totp-rs"]
 mail = ["dep:lettre"]
 ratelimit = ["dep:tower_governor"]
@@ -61,6 +67,10 @@ argon2 = "0.5"
 
 # Per-capability optional deps.
 oauth2 = { version = "5", optional = true }
+# OIDC engine. Pinned to the 4.x line, which depends on oauth2 5.x (matches the
+# `oauth2` dep above — keeps a single oauth2 in the tree). `reqwest`/`rustls-tls`
+# let us drive the flow with our own shared reqwest client.
+openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"], optional = true }
 lettre = { version = "0.11", default-features = false, features = [
     "smtp-transport",

@@ -47,17 +47,23 @@ jobs:
           # arium-dioxus (server side gated on `server`)
           - { package: arium-dioxus, features: "server,sqlite" }
           - { package: arium-dioxus, features: "server,sqlite,oauth-github" }
+          - { package: arium-dioxus, features: "server,sqlite,oauth-oidc" }
+          - { package: arium-dioxus, features: "server,sqlite,oauth-google" }
+          - { package: arium-dioxus, features: "server,sqlite,oauth-microsoft" }
           - { package: arium-dioxus, features: "server,sqlite,mfa,mail,ratelimit" }
           - { package: arium-dioxus, features: "server,sqlite,tokens" }
           - { package: arium-dioxus, features: "server,sqlite,ui,oauth-github,mfa,mail,ratelimit,tokens" }
-          - { package: arium-dioxus, features: "server,postgres,oauth-github,mfa,mail,ratelimit,tokens" }
+          - { package: arium-dioxus, features: "server,postgres,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens" }
           # arium-leptos (server side gated on `ssr`)
           - { package: arium-leptos, features: "ssr,sqlite" }
           - { package: arium-leptos, features: "ssr,sqlite,oauth-github" }
+          - { package: arium-leptos, features: "ssr,sqlite,oauth-oidc" }
+          - { package: arium-leptos, features: "ssr,sqlite,oauth-google" }
+          - { package: arium-leptos, features: "ssr,sqlite,oauth-microsoft" }
           - { package: arium-leptos, features: "ssr,sqlite,mfa,mail,ratelimit" }
           - { package: arium-leptos, features: "ssr,sqlite,tokens" }
           - { package: arium-leptos, features: "ssr,sqlite,ui,oauth-github,mfa,mail,ratelimit,tokens" }
-          - { package: arium-leptos, features: "ssr,postgres,oauth-github,mfa,mail,ratelimit,tokens" }
+          - { package: arium-leptos, features: "ssr,postgres,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens" }
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -91,13 +97,13 @@ jobs:
           cargo check --package arium-leptos \
             --target wasm32-unknown-unknown \
             --no-default-features \
-            --features hydrate,ui,sqlite,oauth-github,mfa,mail,ratelimit,tokens
+            --features hydrate,ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens
       - name: arium-dioxus (client)
         run: |
           cargo check --package arium-dioxus \
             --target wasm32-unknown-unknown \
             --no-default-features \
-            --features ui,sqlite,oauth-github,mfa,mail,ratelimit,tokens
+            --features ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens
 
   fmt:
     name: cargo fmt

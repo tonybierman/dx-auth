@@ -42,6 +42,19 @@ async fn main() -> anyhow::Result<()> {
             builder
         }
     };
+    // Google sign-in via the OIDC engine (build with `--features oauth-google`).
+    // `from_env` is async — it runs OIDC discovery against accounts.google.com.
+    #[cfg(feature = "oauth-google")]
+    let builder = match arium_leptos::oauth::google::GoogleProvider::from_env().await? {
+        Some(google) => {
+            println!("[startup] Google OAuth: enabled");
+            builder.oauth_provider(google)?
+        }
+        None => {
+            println!("[startup] Google OAuth: disabled");
+            builder
+        }
+    };
     let cfg = builder.build()?;
 
     let conf = get_configuration(None)?;

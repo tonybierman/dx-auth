@@ -236,3 +236,40 @@ async fn brand_new_oauth_user_with_no_existing_admin_is_promoted_to_admin() {
         "first non-anonymous user (any signup method) must become admin: roles={role_ids:?}",
     );
 }
+
+#[tokio::test]
+async fn oidc_shaped_profile_upserts_under_its_runtime_provider_name() {
+    // An OIDC provider yields a profile keyed by `sub`, an email-derived login
+    // (no public handle), and no html_url. The runtime provider name ("oidc",
+    // "google", ...) is stored verbatim in oauth_accounts.provider.
+    let pool = common::pool().await;
+    let prof = NormalizedProfile {
+        provider_user_id: "sub-abc-123".to_string(),
+        login: "dana".to_string(), // e.g. derived from dana@corp.example
+        name: Some("Dana Scully".to_string()),
+        email: Some("dana@corp.example".to_string()),
+        avatar_url: Some("https://cdn.example/dana.png".to_string()),
+        html_url: None,
+    };
+    let user_id = upsert_oauth_user(&pool, "oidc", prof).await.unwrap();
+
+    // Linked under the runtime provider name + sub.
+    let oa: (String, String) =
+        sqlx::query_as("SELECT provider, provider_user_id FROM oauth_accounts WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(oa, ("oidc".to_string(), "sub-abc-123".to_string()));
+
+    // Verified (provider asserts the email), no html_url, handle seeded.
+    let row: (String, Option<String>, Option<i64>) =
+        sqlx::query_as("SELECT username, html_url, email_verified_at FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(row.0, "dana");
+    assert!(row.1.is_none(), "OIDC profile carried no html_url");
+    assert!(row.2.is_some(), "OAuth signup marks email verified");
+}

@@ -33,6 +33,12 @@ async fn main() -> anyhow::Result<()> {
     if let Some(gh) = arium_leptos::oauth::github::GithubProvider::from_env()? {
         builder = builder.oauth_provider(gh)?;
     }
+    // OIDC presets (feature `oauth-google` / `oauth-microsoft`) are async —
+    // they run discovery when constructed:
+    #[cfg(feature = "oauth-google")]
+    if let Some(google) = arium_leptos::oauth::google::GoogleProvider::from_env().await? {
+        builder = builder.oauth_provider(google)?;
+    }
     let cfg = builder.build()?;
 
     let conf = get_configuration(None)?;

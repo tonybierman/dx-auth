@@ -7,12 +7,23 @@
 //!
 //! ## Adding a new provider
 //!
-//! 1. Add a feature flag in `Cargo.toml` (e.g. `oauth-google = ["_oauth-core"]`).
+//! Most providers are **OpenID Connect** compliant — for those, don't write a
+//! bespoke impl. Construct an `oidc::OidcProvider` (or use a preset such as
+//! `google` / `microsoft`) with the issuer URL and discovery, PKCE, and
+//! `id_token` validation are handled for you. The OIDC presets are **async**
+//! (`from_env().await`) because discovery does network I/O at construction.
+//!
+//! For a non-OIDC provider (like GitHub):
+//!
+//! 1. Add a feature flag in `Cargo.toml` (e.g. `oauth-foo = ["_oauth-core"]`).
 //! 2. Implement [`OAuthProvider`] for a struct that holds your client id /
 //!    secret / redirect URL, and write a `fetch_profile` that normalises the
-//!    provider's user-info response into a [`NormalizedProfile`].
+//!    provider's user-info response into a [`NormalizedProfile`]. The default
+//!    [`begin`](OAuthProvider::begin) / [`finish`](OAuthProvider::finish) cover
+//!    the standard OAuth2 code flow; opt into PKCE via
+//!    [`use_pkce`](OAuthProvider::use_pkce).
 //! 3. Register it on the builder:
-//!    `AuthConfig::builder(...).oauth_provider(GoogleProvider::from_env()?.unwrap())`.
+//!    `AuthConfig::builder(...).oauth_provider(FooProvider::from_env()?.unwrap())`.
 
 #![cfg(feature = "_oauth-core")]
 
@@ -22,6 +33,12 @@ use std::sync::Arc;
 use crate::pool::Pool;
 
 pub mod github;
+#[cfg(feature = "oauth-google")]
+pub mod google;
+#[cfg(feature = "oauth-microsoft")]
+pub mod microsoft;
+#[cfg(feature = "oauth-oidc")]
+pub mod oidc;
 
 /// Normalised subset of a provider's user-info response. Every provider's
 /// `fetch_profile` returns this so [`upsert_oauth_user`] doesn't need to know
@@ -44,6 +61,20 @@ pub struct NormalizedProfile {
     /// Public profile URL on the provider's site (e.g. `https://github.com/octocat`).
     /// `None` for providers that don't expose one.
     pub html_url: Option<String>,
+}
+
+/// Per-attempt OAuth secrets persisted in the session between the `login`
+/// redirect and the `callback`. Always carries the CSRF `state`; OIDC providers
+/// additionally store the PKCE verifier and the `nonce` bound into the
+/// `id_token`. Stored under [`oauth_state_key`] and consumed once at callback.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OAuthAttempt {
+    /// Opaque CSRF token echoed back as the `state` query parameter.
+    pub csrf_state: String,
+    /// PKCE (RFC 7636) code verifier, when the provider uses PKCE.
+    pub pkce_verifier: Option<String>,
+    /// OIDC nonce bound into the `id_token`, when the provider is OIDC.
+    pub nonce: Option<String>,
 }
 
 /// One pluggable identity provider.
@@ -80,13 +111,79 @@ pub trait OAuthProvider: Send + Sync + 'static {
     fn scopes(&self) -> &[&str];
 
     /// Hit the provider's user-info endpoint with the obtained access token
-    /// and return a [`NormalizedProfile`]. Implementations should set
-    /// `User-Agent` (some providers reject requests without one).
+    /// and return a [`NormalizedProfile`]. The shared HTTP client already sends
+    /// a default `User-Agent` (see [`OAuthRegistry::new`]).
     async fn fetch_profile(
         &self,
         http: &reqwest::Client,
         access_token: &str,
     ) -> anyhow::Result<NormalizedProfile>;
+
+    /// Whether the default [`begin`](OAuthProvider::begin) /
+    /// [`finish`](OAuthProvider::finish) flow should use PKCE (RFC 7636).
+    /// `false` by default; plain-OAuth2 providers can opt in when the provider
+    /// supports it. OIDC providers use PKCE unconditionally via their own
+    /// `begin`/`finish` overrides, independent of this flag.
+    fn use_pkce(&self) -> bool {
+        false
+    }
+
+    /// Start a login: build the authorize redirect URL plus the per-attempt
+    /// secrets ([`OAuthAttempt`]) to persist in the session. The default impl
+    /// runs the standard OAuth2 authorize-code request (random CSRF state, plus
+    /// a PKCE challenge when [`use_pkce`](OAuthProvider::use_pkce) is `true`).
+    /// OIDC providers override this to add a nonce.
+    fn begin(&self) -> anyhow::Result<(String, OAuthAttempt)> {
+        use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
+
+        let client = basic_client(self)?;
+        let mut request = client.authorize_url(CsrfToken::new_random);
+        for scope in self.scopes() {
+            request = request.add_scope(Scope::new((*scope).to_string()));
+        }
+
+        let pkce_verifier = if self.use_pkce() {
+            let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+            request = request.set_pkce_challenge(challenge);
+            Some(verifier.secret().to_string())
+        } else {
+            None
+        };
+
+        let (auth_url, csrf_state) = request.url();
+        Ok((
+            auth_url.to_string(),
+            OAuthAttempt {
+                csrf_state: csrf_state.secret().to_string(),
+                pkce_verifier,
+                nonce: None,
+            },
+        ))
+    }
+
+    /// Finish a login: exchange `code` for tokens (replaying the PKCE verifier
+    /// from `attempt` when present) and return a [`NormalizedProfile`]. The
+    /// default impl does the OAuth2 code exchange then calls
+    /// [`fetch_profile`](OAuthProvider::fetch_profile). OIDC providers override
+    /// this to validate the `id_token` against the stored nonce + the provider
+    /// JWKS.
+    async fn finish(
+        &self,
+        http: &reqwest::Client,
+        code: &str,
+        attempt: &OAuthAttempt,
+    ) -> anyhow::Result<NormalizedProfile> {
+        use oauth2::{AuthorizationCode, PkceCodeVerifier, TokenResponse};
+
+        let client = basic_client(self)?;
+        let mut request = client.exchange_code(AuthorizationCode::new(code.to_string()));
+        if let Some(verifier) = attempt.pkce_verifier.as_ref() {
+            request = request.set_pkce_verifier(PkceCodeVerifier::new(verifier.clone()));
+        }
+        let token = request.request_async(http).await?;
+        self.fetch_profile(http, token.access_token().secret())
+            .await
+    }
 }
 
 /// Holds every registered OAuth provider plus the shared HTTP client + DB
@@ -104,9 +201,12 @@ pub struct OAuthRegistry {
 
 impl OAuthRegistry {
     /// Build an empty registry with a default HTTP client configured to NOT
-    /// follow redirects (SSRF mitigation per the `oauth2` crate guidance).
+    /// follow redirects (SSRF mitigation per the `oauth2` crate guidance) and
+    /// to send a default `arium/<version>` `User-Agent` on every provider
+    /// request (some providers, e.g. GitHub, reject requests without one).
     pub fn new(db: Pool) -> anyhow::Result<Self> {
         let http = reqwest::ClientBuilder::new()
+            .user_agent(concat!("arium/", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
         Ok(Self {
@@ -281,7 +381,7 @@ type BasicClient = oauth2::basic::BasicClient<
     oauth2::EndpointSet,
 >;
 
-fn basic_client(p: &dyn OAuthProvider) -> anyhow::Result<BasicClient> {
+fn basic_client<P: OAuthProvider + ?Sized>(p: &P) -> anyhow::Result<BasicClient> {
     use oauth2::basic::BasicClient as Bc;
     use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 
@@ -314,8 +414,6 @@ pub(crate) async fn oauth_login(
     axum::extract::Path(provider): axum::extract::Path<String>,
     session: crate::extract::SessionStore,
 ) -> Result<axum::response::Redirect, (axum::http::StatusCode, String)> {
-    use oauth2::{CsrfToken, Scope};
-
     let provider_arc = reg.get(&provider).ok_or_else(|| {
         http_err(
             axum::http::StatusCode::NOT_FOUND,
@@ -323,18 +421,15 @@ pub(crate) async fn oauth_login(
         )
     })?;
 
-    let client = basic_client(&*provider_arc)
+    let (auth_url, attempt) = provider_arc
+        .begin()
         .map_err(|e| http_err(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    let mut request = client.authorize_url(CsrfToken::new_random);
-    for scope in provider_arc.scopes() {
-        request = request.add_scope(Scope::new((*scope).to_string()));
-    }
-    let (auth_url, csrf_state) = request.url();
+    // Persist the per-attempt secrets (CSRF state + any PKCE verifier / nonce)
+    // for the callback to validate against.
+    session.set(&oauth_state_key(&provider), attempt);
 
-    session.set(&oauth_state_key(&provider), csrf_state.secret().to_string());
-
-    Ok(axum::response::Redirect::to(auth_url.as_ref()))
+    Ok(axum::response::Redirect::to(&auth_url))
 }
 
 pub(crate) async fn oauth_callback(
@@ -345,8 +440,6 @@ pub(crate) async fn oauth_callback(
     audit: crate::extract::AuditCtx,
     axum::extract::Query(params): axum::extract::Query<CallbackParams>,
 ) -> Result<axum::response::Redirect, (axum::http::StatusCode, String)> {
-    use oauth2::{AuthorizationCode, TokenResponse};
-
     let provider_arc = reg.get(&provider).ok_or_else(|| {
         http_err(
             axum::http::StatusCode::NOT_FOUND,
@@ -355,44 +448,33 @@ pub(crate) async fn oauth_callback(
     })?;
 
     let state_key = oauth_state_key(&provider);
-    let expected_state: Option<String> = session.get(&state_key);
+    let attempt: Option<OAuthAttempt> = session.get(&state_key);
     session.remove(&state_key);
 
-    let expected = expected_state.ok_or_else(|| {
+    let attempt = attempt.ok_or_else(|| {
         http_err(
             axum::http::StatusCode::BAD_REQUEST,
             "missing oauth state in session",
         )
     })?;
 
-    if expected != params.state {
+    if attempt.csrf_state != params.state {
         return Err(http_err(
             axum::http::StatusCode::BAD_REQUEST,
             "oauth state mismatch",
         ));
     }
 
-    let client = basic_client(&*provider_arc)
-        .map_err(|e| http_err(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
-
-    let token = client
-        .exchange_code(AuthorizationCode::new(params.code))
-        .request_async(&reg.http)
-        .await
-        .map_err(|e| {
-            http_err(
-                axum::http::StatusCode::BAD_GATEWAY,
-                format!("token exchange failed: {e}"),
-            )
-        })?;
-
+    // The provider owns token exchange + profile extraction: the default impl
+    // does an OAuth2 code exchange + user-info fetch; OIDC providers validate
+    // the `id_token`. Both surface upstream/parse failures as 502.
     let profile = provider_arc
-        .fetch_profile(&reg.http, token.access_token().secret())
+        .finish(&reg.http, &params.code, &attempt)
         .await
         .map_err(|e| {
             http_err(
                 axum::http::StatusCode::BAD_GATEWAY,
-                format!("user-info fetch failed: {e}"),
+                format!("oauth token exchange / profile fetch failed: {e}"),
             )
         })?;
 

@@ -17,6 +17,8 @@ start fresh); run only one instance at a time.
   it, verification/reset emails are written to `./emails/*.eml`.
 - Set `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` to enable the GitHub
   button; set `SMTP_HOST` (+ creds) for real email.
+- For Google sign-in (OIDC), build with `--features oauth-google` and set
+  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`.
 
 Needs [`cargo-leptos`](https://github.com/leptos-rs/cargo-leptos)
 (`cargo install cargo-leptos`) and the `wasm32-unknown-unknown` target.

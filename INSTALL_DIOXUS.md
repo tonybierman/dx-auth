@@ -40,6 +40,10 @@ arium-dioxus = { version = "0.1", default-features = false, features = [
   "ui",
   "mail",
   "oauth-github",
+  # Opt-in OIDC logins (off by default — pull in the openidconnect crate):
+  # "oauth-google",      # Google preset
+  # "oauth-microsoft",   # Microsoft / Entra preset
+  # "oauth-oidc",        # generic OIDC issuer (GitLab, Okta, Auth0, Keycloak, …)
   "mfa",
   "ratelimit",
   "tokens",

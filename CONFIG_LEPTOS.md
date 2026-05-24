@@ -23,6 +23,9 @@ default = ["ssr", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit", "t
 | `sqlite` | yes | `sqlx::SqlitePool` backend. **Mutually exclusive with `postgres`.** |
 | `postgres` | no | `sqlx::PgPool` backend. **Mutually exclusive with `sqlite`.** |
 | `oauth-github` | yes | GitHub provider + the generic OAuth routes. |
+| `oauth-oidc` | no | Generic OpenID Connect provider (`OidcProvider`) — discovery + PKCE + `id_token` validation via the `openidconnect` crate. Use for any OIDC issuer / enterprise SSO. |
+| `oauth-google` | no | Google sign-in preset (`GoogleProvider`) over the OIDC engine. Implies `oauth-oidc`. |
+| `oauth-microsoft` | no | Microsoft / Entra ID preset (`MicrosoftProvider`) over the OIDC engine. Implies `oauth-oidc`. |
 | `mfa` | yes | TOTP enrollment + verification, recovery codes (+ `MfaChallenge` / `MfaSetup` UI). |
 | `mail` | yes | `Mailer` (SMTP + dev `.eml` fallback) and the email-verification / password-reset endpoints + UI. Without `mail`, signup auto-marks accounts verified. |
 | `ratelimit` | yes | Per-IP rate limiting via `tower_governor`. |
@@ -58,6 +61,54 @@ hides itself.
 | `GITHUB_CLIENT_ID` | _(unset)_ | OAuth App Client ID from <https://github.com/settings/developers>. |
 | `GITHUB_CLIENT_SECRET` | _(unset)_ | OAuth App Client Secret. |
 | `GITHUB_REDIRECT_URL` | `http://localhost:8080/auth/github/callback` | Must exactly match the GitHub OAuth App's "Authorization callback URL". Set this to your `site-addr`, e.g. `http://127.0.0.1:3000/auth/github/callback`. |
+
+> The redirect-URL defaults below also assume `:8080` — override each to match
+> your `site-addr` (e.g. `http://127.0.0.1:3000/auth/<provider>/callback`).
+
+### Google OAuth (`oauth-google`)
+
+`GoogleProvider::from_env().await` returns `Ok(None)` when the client ID or
+secret is unset. Credentials come from a Google Cloud OAuth 2.0 Client (type
+"Web application").
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | _(unset)_ | OAuth client ID from <https://console.cloud.google.com/apis/credentials>. |
+| `GOOGLE_CLIENT_SECRET` | _(unset)_ | OAuth client secret. |
+| `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/google/callback` | Must match an "Authorized redirect URI" on the OAuth client. |
+
+### Microsoft / Entra OAuth (`oauth-microsoft`)
+
+`MicrosoftProvider::from_env().await` returns `Ok(None)` when the client ID or
+secret is unset. Register an app at the Microsoft Entra admin center.
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `MICROSOFT_CLIENT_ID` | _(unset)_ | Application (client) ID. |
+| `MICROSOFT_CLIENT_SECRET` | _(unset)_ | Client secret value. |
+| `MICROSOFT_REDIRECT_URL` | `http://localhost:8080/auth/microsoft/callback` | Must match a redirect URI registered on the app. |
+| `MICROSOFT_TENANT` | `common` | Tenant: `common`, `organizations`, `consumers`, or a specific tenant id. |
+
+### Generic OIDC (`oauth-oidc`)
+
+For any other OpenID Connect issuer (GitLab, Okta, Auth0, Keycloak, …),
+`OidcProvider::from_env().await` builds a provider by discovery against
+`OIDC_ISSUER_URL`. Returns `Ok(None)` unless the client ID, secret, **and**
+issuer are all set.
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `OIDC_CLIENT_ID` | _(unset)_ | OAuth client ID. |
+| `OIDC_CLIENT_SECRET` | _(unset)_ | OAuth client secret. |
+| `OIDC_ISSUER_URL` | _(unset, required)_ | Issuer base URL; discovery fetches `<issuer>/.well-known/openid-configuration`. |
+| `OIDC_REDIRECT_URL` | `http://localhost:8080/auth/oidc/callback` | Must match a redirect URI registered with the provider. |
+| `OIDC_SCOPES` | `openid email profile` | Space-separated; `openid` is added automatically if omitted. |
+| `OIDC_NAME` | `oidc` | Machine name → route segment (`/auth/<name>/...`) + `oauth_accounts.provider`. |
+| `OIDC_DISPLAY_NAME` | `SSO` | Label on the sign-in button. |
+
+> OIDC presets run discovery (a network call) when constructed, so
+> `from_env()` is **async** — `await` it, and an unreachable issuer fails app
+> startup.
 
 ### Email (`mail`)
 

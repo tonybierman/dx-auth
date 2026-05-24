@@ -16,6 +16,7 @@ pub struct GithubProvider {
     client_secret: String,
     redirect_url: String,
     scopes: Vec<&'static str>,
+    use_pkce: bool,
 }
 
 impl GithubProvider {
@@ -26,7 +27,16 @@ impl GithubProvider {
             client_secret,
             redirect_url,
             scopes: vec!["read:user", "user:email"],
+            use_pkce: false,
         }
+    }
+
+    /// Opt into PKCE (RFC 7636) for the authorization-code exchange. GitHub
+    /// supports PKCE; it's off by default to preserve the original behaviour.
+    #[must_use]
+    pub fn with_pkce(mut self, enabled: bool) -> Self {
+        self.use_pkce = enabled;
+        self
     }
 
     /// Build a [`GithubProvider`] from the standard env-var triple.
@@ -112,14 +122,19 @@ impl OAuthProvider for GithubProvider {
         &self.scopes
     }
 
+    fn use_pkce(&self) -> bool {
+        self.use_pkce
+    }
+
     async fn fetch_profile(
         &self,
         http: &reqwest::Client,
         access_token: &str,
     ) -> anyhow::Result<NormalizedProfile> {
+        // The shared client sends a default `arium/<version>` User-Agent
+        // (GitHub rejects requests without one).
         let info: GithubUserInfo = http
             .get("https://api.github.com/user")
-            .header("User-Agent", "dx-auth")
             .header("Accept", "application/vnd.github+json")
             .bearer_auth(access_token)
             .send()
