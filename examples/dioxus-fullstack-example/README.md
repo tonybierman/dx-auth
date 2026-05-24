@@ -50,7 +50,8 @@ in `./data/` (host-owned, gitignored) — `rm -rf data` to start fresh.
 - Build context is the workspace root (the bundle lives in the shared
   `target/`); compose sets `context: ../..` for you.
 - Override the published port, `PUBLIC_BASE_URL`, SMTP creds, GitHub OAuth,
-  etc. via `.env` (see `.env.example`; the repo-root `.env.example` lists every
-  arium var, including Google / Microsoft / generic OIDC).
+  etc. via `.env` (see `.env.example`). For the full arium config surface —
+  Microsoft, generic OIDC, rate limiting, … — see
+  [CONFIG_DIOXUS.md](../../CONFIG_DIOXUS.md#environment-variables).
 - After a code change, re-bundle and rebuild:
   `dx bundle --release --platform web --package dioxus-fullstack-example && docker compose up -d --build`.
