@@ -22,7 +22,10 @@ async fn main() -> anyhow::Result<()> {
     let connect_opts = match std::env::var("DATABASE_URL") {
         Ok(url) if !url.trim().is_empty() => SqliteConnectOptions::from_str(&url)?,
         _ => SqliteConnectOptions::new()
-            .filename(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/auth-leptos.db"))
+            .filename(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../target/auth-leptos.db"
+            ))
             .create_if_missing(true),
     };
     let pool = SqlitePoolOptions::new()
