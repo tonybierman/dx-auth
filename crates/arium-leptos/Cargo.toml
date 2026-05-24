@@ -1,0 +1,76 @@
+[package]
+name = "arium-leptos"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Leptos 0.8 adapter for the arium auth engine: server fns + UI components."
+license = "MIT OR Apache-2.0"
+authors = ["Tony Bierman <tonybierman@gmail.com>"]
+repository = "https://github.com/tonybierman/arium"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["ssr", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit", "tokens"]
+
+# Server build. Pulls the engine + axum integration in and turns on Leptos's
+# SSR runtime. Mirrors arium-dioxus's `server` feature, but Leptos selects
+# server-vs-client by THIS cargo feature (and `#[cfg(feature = "ssr")]`), not by
+# `cfg(target_arch = "wasm32")`. The crate is compiled twice — once with `ssr`
+# (native server), once with `hydrate` (wasm client) — so the engine deps are
+# gated on `ssr` and must never appear on the hydrate build.
+ssr = [
+    "dep:arium",
+    "dep:axum",
+    "dep:sqlx",
+    "dep:axum_session_auth",
+    "dep:leptos_axum",
+    "leptos/ssr",
+    "leptos_meta?/ssr",
+    "leptos_router?/ssr",
+]
+
+# Client/wasm build (hydration).
+hydrate = [
+    "leptos/hydrate",
+    "dep:wasm-bindgen",
+    "dep:console_error_panic_hook",
+]
+
+# UI components (LoginPanel, etc.). Needs the router (guards/navigation) and
+# meta (<Stylesheet>) crates.
+ui = ["dep:leptos_router", "dep:leptos_meta"]
+
+# Capability flags. These must EXIST on BOTH builds so the
+# `#[cfg(feature = "...")]`-gated server-fn DECLARATIONS in src/server.rs
+# compile (Leptos generates the client-side fetch stub from the same fn). The
+# weak-dep `arium?/x` syntax forwards to the engine's matching feature only
+# when `arium` is actually present — i.e. on the `ssr` build.
+sqlite = ["arium?/sqlite"]
+postgres = ["arium?/postgres"]
+oauth-github = ["arium?/oauth-github"]
+mfa = ["arium?/mfa"]
+mail = ["arium?/mail"]
+ratelimit = ["arium?/ratelimit"]
+tokens = ["arium?/tokens"]
+
+[dependencies]
+leptos = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8", optional = true }
+leptos_meta = { version = "0.8", optional = true }
+arium-wire = { path = "../arium-wire" }
+anyhow = "1.0.98"
+
+# Server engine + axum integration. Plain optional deps enabled only by `ssr`
+# (NOT target-gated): a hydrate build is also compiled and must never see them.
+arium = { path = "../arium", default-features = false, optional = true }
+axum = { version = "0.8.4", default-features = false, features = ["macros"], optional = true }
+sqlx = { version = "0.8.6", default-features = false, features = ["macros", "runtime-tokio"], optional = true }
+axum_session_auth = { version = "0.16.0", optional = true }
+leptos_axum = { version = "0.8", optional = true }
+
+# Client/wasm hydration entrypoint deps. Small; compile on any target, only
+# referenced under `hydrate`.
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }

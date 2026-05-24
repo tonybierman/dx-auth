@@ -1,0 +1,71 @@
+[package]
+name = "leptos-fullstack-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+leptos = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8", default-features = false }
+leptos_meta = { version = "0.8", default-features = false }
+arium-leptos = { path = "../../crates/arium-leptos", default-features = false, features = [
+    "ui",
+    "mfa",
+    "mail",
+    "oauth-github",
+    "ratelimit",
+    "tokens",
+] }
+anyhow = "1"
+
+# Server-only deps (the axum host, runtime, db pool, Leptos axum integration).
+axum = { version = "0.8.4", optional = true }
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "net"], optional = true }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "macros",
+    "migrate",
+    "sqlite",
+    "_unstable-all-types",
+    "tls-native-tls",
+    "runtime-tokio",
+], optional = true }
+leptos_axum = { version = "0.8", optional = true }
+
+# Client/wasm hydration entrypoint deps.
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["ssr"]
+ssr = [
+    "dep:axum",
+    "dep:tokio",
+    "dep:sqlx",
+    "dep:leptos_axum",
+    "leptos/ssr",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "arium-leptos/ssr",
+    "arium-leptos/sqlite",
+]
+hydrate = [
+    "leptos/hydrate",
+    "arium-leptos/hydrate",
+    "dep:wasm-bindgen",
+    "dep:console_error_panic_hook",
+]
+
+[package.metadata.leptos]
+output-name = "leptos-fullstack-example"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+bin-features = ["ssr"]
+bin-default-features = false
+lib-features = ["hydrate"]
+lib-default-features = false

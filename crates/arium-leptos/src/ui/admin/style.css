@@ -1,0 +1,367 @@
+.admin-shell {
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+/* Responsive data list: grid columns on wide viewports, stacked cards on
+   narrow viewports. Used by AdminUserList and AuditLog so the tables can
+   collapse cleanly on mobile instead of horizontal-scrolling. The shared
+   columns CSS var is set per-list (users vs audit). */
+.data-list {
+  width: 100%;
+  border: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 30%, transparent));
+}
+
+.data-header {
+  display: grid;
+  grid-template-columns: var(--data-cols, 1fr);
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 50%, transparent));
+  color: var(--secondary-color-5);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.data-virtual {
+  /* Container that VirtualList scrolls inside. We cap the height so long
+     lists virtualize meaningfully and short lists don't gain dead space. */
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
+.data-row {
+  display: grid;
+  grid-template-columns: var(--data-cols, 1fr);
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 60%, transparent));
+  font-size: 0.875rem;
+  color: var(--secondary-color-3);
+  cursor: pointer;
+  transition: background-color 100ms ease-out;
+}
+
+.data-row:first-child {
+  border-top: none;
+}
+
+.data-row:hover,
+.data-row:focus-visible {
+  outline: none;
+  background-color: var(--light, var(--primary-color-4))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 50%, transparent));
+  color: var(--secondary-color-1);
+}
+
+.data-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focused-border-color);
+}
+
+.data-row[data-static] {
+  cursor: default;
+}
+
+.data-row[data-static]:hover,
+.data-row[data-static]:focus-visible {
+  background-color: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.data-cell {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.data-cell small {
+  color: var(--secondary-color-5);
+}
+
+/* Narrow viewport: stack each row's cells with their label, hide the
+   shared header. */
+@media (max-width: 40rem) {
+  .data-header {
+    display: none;
+  }
+  .data-row {
+    grid-template-columns: 1fr;
+    gap: 0.375rem;
+    padding: 0.75rem 0.875rem;
+  }
+  .data-cell[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--secondary-color-5);
+    margin-bottom: 0.125rem;
+  }
+}
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1.5rem 1rem;
+}
+
+.admin-section-heading {
+  margin: 0;
+  color: var(--secondary-color-2);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.admin-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--secondary-color-4);
+}
+
+.admin-meta-row strong {
+  color: var(--secondary-color-2);
+  font-weight: 600;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  border-radius: 0.5rem;
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 30%, transparent));
+}
+
+.admin-table {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  color: var(--secondary-color-3);
+}
+
+.admin-table thead th {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 50%, transparent));
+  color: var(--secondary-color-5);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.admin-table tbody tr {
+  border-top: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 60%, transparent));
+  cursor: pointer;
+  transition: background-color 100ms ease-out;
+}
+
+.admin-table tbody tr:hover {
+  background-color: var(--light, var(--primary-color-4))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 50%, transparent));
+  color: var(--secondary-color-1);
+}
+
+.admin-table tbody tr:focus-visible {
+  outline: none;
+  background-color: var(--light, var(--primary-color-4))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 50%, transparent));
+  box-shadow: inset 0 0 0 2px var(--focused-border-color);
+  color: var(--secondary-color-1);
+}
+
+.admin-table td {
+  padding: 0.625rem 0.875rem;
+  vertical-align: middle;
+}
+
+.admin-table td small {
+  color: var(--secondary-color-5);
+}
+
+.admin-row-roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+}
+
+.admin-pager {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.5rem;
+}
+
+.admin-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.admin-role-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  border-radius: 0.5rem;
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 25%, transparent));
+}
+
+.admin-role-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.875rem;
+  color: var(--secondary-color-3);
+  user-select: none;
+}
+
+.admin-role-name {
+  font-weight: 600;
+  color: var(--secondary-color-2);
+}
+
+.admin-role-desc {
+  font-size: 0.8125rem;
+  color: var(--secondary-color-5);
+}
+
+.admin-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--secondary-color-3);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+  cursor: pointer;
+}
+
+.admin-back:hover {
+  color: var(--secondary-color-1);
+}
+
+.admin-skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-info {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--secondary-color-4) 30%, transparent);
+  border-radius: 0.5rem;
+  background-color: color-mix(in oklab, var(--secondary-color-4) 12%, transparent);
+  color: var(--secondary-color-2);
+  font-size: 0.8125rem;
+}
+
+.admin-error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--light, #fca5a5) var(--dark, #7f1d1d);
+  border-radius: 0.5rem;
+  background-color: var(--light, #fee2e2)
+    var(--dark, rgba(127, 29, 29, 0.25));
+  color: var(--light, #7f1d1d) var(--dark, #fecaca);
+  font-size: 0.8125rem;
+}
+
+.role-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.role-field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--secondary-color-2);
+}
+
+.token-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+}
+
+.token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--light, var(--primary-color-6))
+    var(--dark, var(--primary-color-7));
+  border-radius: 999px;
+  background-color: var(--light, var(--primary-color))
+    var(--dark, color-mix(in oklab, var(--primary-color-7) 30%, transparent));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: var(--secondary-color-2);
+}
+
+.token-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--secondary-color-4);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.token-chip-remove:hover,
+.token-chip-remove:focus-visible {
+  outline: none;
+  background-color: color-mix(in oklab, var(--secondary-color-4) 20%, transparent);
+  color: var(--secondary-color-1);
+}
+
+.token-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.token-input-row > :first-child {
+  flex: 1;
+}

@@ -1,0 +1,91 @@
+.dx-auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+.dx-auth-card {
+    width: 100%;
+    max-width: 24rem;
+}
+
+.dx-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.dx-auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.dx-auth-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.dx-auth-submit {
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.dx-auth-aux {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.dx-auth-success {
+    font-size: 0.875rem;
+    padding: 0.5rem 0;
+}
+
+.dx-auth-error {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #fca5a5;
+    border-radius: 0.5rem;
+    background-color: #fee2e2;
+    color: #7f1d1d;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+}
+
+.dx-mfa-artifacts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.dx-mfa-qr {
+    width: 12rem;
+    height: 12rem;
+    align-self: center;
+    background-color: white;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+}
+
+.dx-mfa-recovery {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.04);
+    font-size: 0.875rem;
+}
+
+.dx-mfa-recovery-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.75rem;
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
