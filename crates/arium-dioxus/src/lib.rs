@@ -29,8 +29,11 @@ pub mod ui;
 /// `document::Stylesheet { href: arium_dioxus::DEFAULT_THEME_CSS }`.
 ///
 /// Consumers should link this asset rather than vendoring their own copy. To
-/// customize the palette, define the same custom-property names in your own
-/// stylesheet and link that *instead of* this default.
+/// customize the palette, redefine the same custom-property names in your own
+/// stylesheet and link it *after* this default so the cascade resolves to your
+/// values (override only the tokens you're changing) — or link yours instead of
+/// this one to replace the palette wholesale. See the "Customizing the UI"
+/// section of `CONFIG_DIOXUS.md` for the mechanics.
 #[cfg(feature = "ui")]
 pub use theme::DEFAULT_THEME_CSS;
 

@@ -34,10 +34,15 @@ pub mod server;
 
 /// The default dx-components catalog theme — the CSS custom properties
 /// (`--primary-color-*`, `--secondary-color-*`, …) every catalog widget and
-/// auth screen consumes via `var(...)`. [`ui::AuthStylesheets`] injects this
-/// automatically; it's exposed here for apps that want to inject (or override)
-/// it themselves. To customize the palette, define the same custom-property
-/// names in your own stylesheet loaded after the auth CSS.
+/// auth screen consumes via `var(...)`. [`ui::AuthStylesheets`] injects it
+/// automatically (as one `<style>` block, theme tokens first); it's exposed
+/// here for apps that want to inject it themselves.
+///
+/// To customize the palette, redefine the same custom-property names in your
+/// own CSS. Since the theme ships in a body `<style>`, your override must come
+/// *after* it in document order to win the cascade — a plain `<head>` link
+/// loads first and loses. See the "Customizing the UI" section of
+/// `CONFIG_LEPTOS.md` for the mechanics.
 #[cfg(feature = "ui")]
 pub const DEFAULT_THEME_CSS: &str = include_str!("../assets/dx-components-theme.css");
 

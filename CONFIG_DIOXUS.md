@@ -157,3 +157,51 @@ let cfg = AuthConfig::builder(pool.clone(), mailer)
 
 Defaults: IP + user-agent captured, 90-day retention. Drop
 `arium_dioxus::ui::admin::AuditLog` onto an `/admin/audit` route for the viewer.
+
+## Customizing the UI
+
+Requires the `ui` feature. Branding the copy (titles, labels, placeholders,
+provider buttons) and re-skinning the palette (the CSS custom properties every
+widget reads) work the same on both adapters — see
+[CUSTOMIZING.md](CUSTOMIZING.md). This section covers what's specific to Dioxus:
+how the stylesheets are delivered and how to override them.
+
+### Loading the theme
+
+`arium_dioxus::DEFAULT_THEME_CSS` is an `Asset` (it's bundled and fingerprinted
+by `asset!`). Link it once near your app root; the catalog widget + auth-screen
+stylesheets are pinned automatically by `PermissionsProvider` (so screens stay
+styled across mount/unmount cycles):
+
+```rust
+rsx! {
+    document::Stylesheet { href: arium_dioxus::DEFAULT_THEME_CSS }
+    PermissionsProvider {
+        OAuthProvidersProvider {
+            Router::<Route> {}
+        }
+    }
+}
+```
+
+### Overriding tokens
+
+Link your own stylesheet **after** `DEFAULT_THEME_CSS` so the cascade resolves
+to your values — redefine only the [tokens](CUSTOMIZING.md#theming-the-palette-css-custom-properties)
+you're changing:
+
+```rust
+rsx! {
+    document::Stylesheet { href: arium_dioxus::DEFAULT_THEME_CSS }
+    document::Stylesheet { href: asset!("/assets/brand.css") } // your overrides
+    // …providers + router…
+}
+```
+
+> **You can't restyle catalog widgets by class name.** Each Dioxus widget uses
+> `#[css_module]`, which hashes its class names (`dx-button` becomes something
+> like `dx-button-a1b2c`), so a selector like `.dx-button` in your own
+> stylesheet won't match anything. This is by design — restyle through the
+> **token palette** instead, which is global and the supported override surface.
+> (It's also why the provider button re-implements the catalog Button's outline
+> look from tokens rather than reusing its class.)

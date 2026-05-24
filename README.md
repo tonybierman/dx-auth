@@ -3,7 +3,7 @@
 [![CI](https://github.com/tonybierman/arium/actions/workflows/ci.yml/badge.svg)](https://github.com/tonybierman/arium/actions)
 [![Crates.io](https://img.shields.io/crates/v/arium.svg)](https://crates.io/crates/arium)
 [![Docs.rs](https://docs.rs/arium/badge.svg)](https://docs.rs/arium)
-[![License](https://img.shields.io/crates/l/arium.svg)](#license)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 Drop-in authentication and authorization for Rust fullstack apps built on
 [axum](https://github.com/tokio-rs/axum) and [sqlx](https://github.com/launchbadge/sqlx),
@@ -11,7 +11,7 @@ with ready-made UI adapters for [Dioxus](https://dioxuslabs.com) and [Leptos](ht
 
 ## Why this exists
 
-Every app re-implements the same auth surface: password hashing, sessions,
+Every multi-user app re-implements the same auth surface: password hashing, sessions,
 OAuth, MFA, email verification, password reset, roles and permissions, and an
 audit trail. arium implements that surface once as a framework-agnostic engine
 you bolt onto an `axum::Router` with a single `install` call, then ships
@@ -95,6 +95,9 @@ when its config is absent. Full feature and env-var reference:
 
 - **Dioxus** → [CONFIG_DIOXUS.md](CONFIG_DIOXUS.md)
 - **Leptos** → [CONFIG_LEPTOS.md](CONFIG_LEPTOS.md)
+
+Branding and theming the drop-in UI (shared across both adapters) →
+[CUSTOMIZING.md](CUSTOMIZING.md).
 
 ## Contributing
 

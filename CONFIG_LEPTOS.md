@@ -162,3 +162,38 @@ let cfg = AuthConfig::builder(pool.clone(), mailer)
 
 Defaults: IP + user-agent captured, 90-day retention. Drop the `AuditLog`
 component onto an `/admin/audit` route for the viewer.
+
+## Customizing the UI
+
+Requires the `ui` feature. Branding the copy (titles, labels, placeholders,
+provider buttons) and re-skinning the palette (the CSS custom properties every
+widget reads) work the same on both adapters — see
+[CUSTOMIZING.md](CUSTOMIZING.md). This section covers what's specific to Leptos:
+how the stylesheets are delivered and how to override them.
+
+### Loading the theme
+
+`arium_leptos::DEFAULT_THEME_CSS` is a `&'static str` (the theme CSS,
+`include_str!`-bundled into the binary). `PermissionsProvider` mounts an
+`AuthStylesheets` component that concatenates the theme **first**, then every
+catalog + auth-screen stylesheet, and emits them as a single `<style>` block —
+so wrapping your router in `PermissionsProvider` is all it takes to get a styled
+UI. The constant is also exported so you can inject it yourself in an SSR shell
+if you'd rather not rely on the provider.
+
+### Overriding tokens
+
+`AuthStylesheets` emits its bundle as a `<style>` element in the component tree
+(not a hoisted `<head>` link), with the theme tokens first. For your overrides
+to win the cascade they must come **after** that `<style>` in document order —
+so redefine the [tokens](CUSTOMIZING.md#theming-the-palette-css-custom-properties)
+you're changing in a stylesheet mounted after the `PermissionsProvider` subtree.
+(A plain `<link>` in your shell's `<head>` loads *before* the body `<style>`, so
+it loses to the defaults — raise specificity or place it later in the tree.)
+
+> **You _can_ restyle catalog widgets by class name here.** Unlike the Dioxus
+> adapter, the Leptos catalog uses plain global class names (`dx-button`,
+> `dx-card`, `login-panel`, …) — no hashing. So beyond the token palette, an
+> external stylesheet can target those classes directly. Prefer the token
+> palette for color/theme changes (it stays stable across versions); reach for
+> class selectors only for layout tweaks the tokens don't cover.
