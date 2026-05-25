@@ -123,9 +123,18 @@ jobs:
       - uses: actions/checkout@v6
       - name: Install pinned toolchain
         run: rustup show
+      # GitHub Actions cache keys can't contain commas, and `matrix.features`
+      # is comma-separated — feeding it straight into the key makes rust-cache
+      # fail to restore (a red annotation on every combo, and no caching).
+      # Sanitize commas to hyphens so each combo still gets its own cache.
+      - name: Compute cache key
+        id: cache_key
+        env:
+          FEATURES: ${{ matrix.features }}
+        run: echo "key=features-${{ matrix.package }}-${FEATURES//,/-}" >> "$GITHUB_OUTPUT"
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: features-${{ matrix.package }}-${{ matrix.features }}
+          shared-key: ${{ steps.cache_key.outputs.key }}
       - name: Check
         run: |
           cargo check \
