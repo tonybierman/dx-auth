@@ -170,7 +170,11 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-test",
+ "web-sys",
+ "webauthn-rs-proto",
 ]
 
 [[package]]
@@ -7021,6 +7025,8 @@ dependencies = [
  "cfg-if",
  "once_cell",
  "rustversion",
+ "serde",
+ "serde_json",
  "wasm-bindgen-macro",
  "wasm-bindgen-shared",
 ]
@@ -7271,9 +7277,13 @@ checksum = "c37393beac9c1ed1ca6dbb30b1e01783fb316ab3a45d90ecd48c99052dd7ef1e"
 dependencies = [
  "base64 0.21.7",
  "base64urlsafedata",
+ "js-sys",
  "serde",
+ "serde-wasm-bindgen",
  "serde_json",
  "url",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

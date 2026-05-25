@@ -28,6 +28,9 @@ pub mod forgot_password;
 pub mod mfa;
 /// Context provider that fetches the list of OAuth providers once.
 pub mod oauth_providers;
+/// Passkey (WebAuthn) enrollment + sign-in screens and the browser bridge.
+#[cfg(feature = "webauthn")]
+pub mod passkeys;
 /// Permission set context provider and route-level permission guards.
 pub mod permissions;
 /// Route-level guard that bounces unauthenticated visitors.

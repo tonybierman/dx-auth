@@ -62,8 +62,9 @@ jobs:
           - { package: arium-dioxus, features: "server,sqlite,oauth-microsoft" }
           - { package: arium-dioxus, features: "server,sqlite,mfa,mail,ratelimit" }
           - { package: arium-dioxus, features: "server,sqlite,tokens" }
-          - { package: arium-dioxus, features: "server,sqlite,ui,oauth-github,mfa,mail,ratelimit,tokens" }
-          - { package: arium-dioxus, features: "server,postgres,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens" }
+          - { package: arium-dioxus, features: "server,sqlite,webauthn" }
+          - { package: arium-dioxus, features: "server,sqlite,ui,oauth-github,mfa,webauthn,mail,ratelimit,tokens" }
+          - { package: arium-dioxus, features: "server,postgres,oauth-github,oauth-google,oauth-microsoft,mfa,webauthn,mail,ratelimit,tokens" }
           # arium-leptos (server side gated on `ssr`)
           - { package: arium-leptos, features: "ssr,sqlite" }
           - { package: arium-leptos, features: "ssr,sqlite,oauth-github" }
@@ -122,7 +123,7 @@ jobs:
           cargo check --package arium-dioxus \
             --target wasm32-unknown-unknown \
             --no-default-features \
-            --features ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,mail,ratelimit,tokens
+            --features ui,sqlite,oauth-github,oauth-google,oauth-microsoft,mfa,webauthn,mail,ratelimit,tokens
 
   # Run the wasm client-surface logic tests (tests/wasm_client.rs) in Node via
   # wasm-bindgen-test-runner — no browser. The `wasm` job above only *checks*

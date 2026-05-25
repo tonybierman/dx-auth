@@ -43,7 +43,14 @@ mfa = ["arium?/mfa"]
 # Passkeys / WebAuthn. `dep:serde_json` is used server-side to (de)serialize the
 # ceremony JSON; the wasm-only browser bridge deps (web-sys, wasm-bindgen, …)
 # are added to this feature alongside the bridge module.
-webauthn = ["arium?/webauthn", "dep:serde_json"]
+webauthn = [
+    "arium?/webauthn",
+    "dep:serde_json",
+    "dep:web-sys",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:webauthn-rs-proto",
+]
 mail = ["arium?/mail"]
 ratelimit = ["arium?/ratelimit"]
 tokens = ["arium?/tokens"]
@@ -75,6 +82,23 @@ axum_session_auth = { version = "0.16.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { version = "0.4", features = ["futures"], default-features = false }
+
+# Browser-side WebAuthn bridge (the `webauthn` feature, client build only).
+# `webauthn-rs-proto`'s `wasm` feature provides the From conversions between its
+# JSON DTOs and the web-sys credential option/result types, so we don't
+# hand-marshal ArrayBuffers.
+web-sys = { version = "0.3", optional = true, features = [
+    "Window",
+    "Navigator",
+    "CredentialsContainer",
+    "Credential",
+    "PublicKeyCredential",
+    "CredentialCreationOptions",
+    "CredentialRequestOptions",
+] }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+webauthn-rs-proto = { version = "0.5.5", default-features = false, features = ["wasm"], optional = true }
 
 # serde(_json) is the only dev-dep both tests share, and it compiles on every
 # target — so it stays here. The native-only and wasm-only stacks are split
