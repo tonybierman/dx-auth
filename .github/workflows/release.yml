@@ -48,17 +48,19 @@ jobs:
       # run that resumes after a partial release) completes the remaining
       # crates instead of failing at the first already-published one.
       - name: cargo publish (lockstep, skip already-published)
+        # pipefail so the pipeline reflects cargo's status, not tee's; the
+        # publish call sits in an `if` condition, which errexit (bash -e)
+        # deliberately ignores, so a non-zero "already uploaded" reaches the
+        # skip branch instead of aborting the job.
         run: |
+          set -eo pipefail
           publish() {
-            local out status
-            out=$(cargo publish -p "$1" 2>&1); status=$?
-            echo "$out"
-            if [ "$status" -eq 0 ]; then
+            if cargo publish -p "$1" 2>&1 | tee "/tmp/publish-$1.log"; then
               echo "::notice::published $1"
-            elif echo "$out" | grep -qiE "already (uploaded|exists)|is already uploaded"; then
+            elif grep -qiE "already (uploaded|exists)|is already uploaded" "/tmp/publish-$1.log"; then
               echo "::notice::$1 already on crates.io at this version — skipping"
             else
-              echo "::error::publish failed for $1"; return "$status"
+              echo "::error::publish failed for $1"; return 1
             fi
           }
           publish arium-wire
