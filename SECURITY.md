@@ -73,6 +73,22 @@ It is **not** intended to defend against:
 - **Bootstrap admin** is gated by the `BOOTSTRAP_ADMIN_EMAIL` env var —
   the first signup matching that email is auto-promoted, after which
   the env var no longer grants privileges to anyone else.
+- **Secure response headers by default.** `install` stamps a behaviour-safe
+  static set on every response (including short-circuited ones like a
+  rate-limit `429`): `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`,
+  `X-Frame-Options: SAMEORIGIN`, `Cross-Origin-Opener-Policy: same-origin`,
+  `X-Permitted-Cross-Domain-Policies: none`, and a restrictive
+  `Permissions-Policy`. No configuration required. The environment-specific
+  headers (HSTS, CSP) and the `Secure` cookie flag are opt-in — see
+  [Deploying behind HTTPS](#deploying-behind-https) below.
+- **Credential forms submit over POST.** The login, forgot-password, and
+  reset-password forms carry `method="post"`, so even in a degraded path
+  (JS disabled, pre-hydration, or a native scanner submit) typed
+  credentials never land in the URL / access logs / `Referer`.
+- **Constant-time login.** Sign-in runs an Argon2 verify on every attempt —
+  including unknown emails — so response timing can't be used to enumerate
+  which addresses have accounts.
 
 ### Dependency hygiene (CI-enforced)
 
@@ -136,6 +152,42 @@ Gating (a failure blocks the merge):
 - **TOTP:** `totp-rs` 5.x.
 - **Random secrets:** seeded from the OS via `argon2::password_hash::
   rand_core::OsRng` and `getrandom` — never a thread-local PRNG.
+
+## Deploying behind HTTPS
+
+Three production hardening knobs are **off by default** — each one breaks
+plain-HTTP `localhost` development, so you opt in when deploying behind TLS.
+Set them on the `AuthConfig` builder before `install`:
+
+```rust
+let cfg = AuthConfig::builder(pool, mailer)
+    // ...providers, audit, rate-limit, etc...
+    .cookie_secure(true)                       // session cookie sent over HTTPS only
+    .hsts(arium::RECOMMENDED_HSTS)             // Strict-Transport-Security
+    .content_security_policy("default-src 'self'; ...") // tune for your build
+    .build()?;
+```
+
+- **`cookie_secure(true)`** adds `Secure` to the session cookie. Leave it off
+  locally — a `Secure` cookie is never sent over HTTP, so enabling it on a
+  plain-HTTP dev build silently logs everyone out. The cookie stays
+  `SameSite=Lax` (not `Strict`) on purpose: the OAuth provider's callback is a
+  cross-site top-level redirect, and only `Lax` lets the session cookie — which
+  carries the CSRF `state` and PKCE verifier — ride it. `Strict` breaks OAuth.
+- **`hsts(...)`** enables `Strict-Transport-Security`. `arium::RECOMMENDED_HSTS`
+  is a sensible two-year `includeSubDomains; preload` value. Only set it behind
+  HTTPS: once a browser sees HSTS it refuses plain-HTTP for the domain until the
+  directive expires, which can lock you out of a `localhost` dev build.
+- **`content_security_policy(...)`** enables CSP. A Dioxus app hydrates from
+  wasm plus an inline bootstrap script, so the policy must permit them — a wrong
+  CSP silently breaks hydration. See the rustdoc on
+  `AuthConfigBuilder::content_security_policy` for a working starter policy to
+  tighten with nonces/hashes once you've confirmed your build still hydrates.
+
+`RECOMMENDED_HSTS` is exported from the `arium` crate; reference it as
+`arium::RECOMMENDED_HSTS` (or pass the equivalent string literal) — the
+`arium-dioxus` / `arium-leptos` adapters re-export `AuthConfig` and
+`AuthConfigBuilder` but not the constant.
 
 ## Known limitations
 
