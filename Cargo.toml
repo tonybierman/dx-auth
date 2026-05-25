@@ -6,7 +6,7 @@ resolver = "3"
 # `<field>.workspace = true`. Lockstep: bump `version` once and every crate that
 # inherits it moves together.
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Tony Bierman <tonybierman@gmail.com>"]
@@ -17,5 +17,5 @@ homepage = "https://github.com/tonybierman/arium"
 # path (so local builds use the working tree). Members reference these via
 # `{ workspace = true }`.
 [workspace.dependencies]
-arium-wire = { version = "0.1.1", path = "crates/arium-wire" }
-arium = { version = "0.1.1", path = "crates/arium", default-features = false }
+arium-wire = { version = "0.1.2", path = "crates/arium-wire" }
+arium = { version = "0.1.2", path = "crates/arium", default-features = false }
