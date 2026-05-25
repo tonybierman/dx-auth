@@ -43,6 +43,24 @@ jobs:
         with:
           shared-key: ci
       # Dependency order: arium-wire (no internal deps) -> arium -> arium-leptos.
-      - run: cargo publish -p arium-wire
-      - run: cargo publish -p arium
-      - run: cargo publish -p arium-leptos
+      # Each publish is idempotent: if that crate's version is already on
+      # crates.io it's skipped rather than aborting the job, so a re-run (or a
+      # run that resumes after a partial release) completes the remaining
+      # crates instead of failing at the first already-published one.
+      - name: cargo publish (lockstep, skip already-published)
+        run: |
+          publish() {
+            local out status
+            out=$(cargo publish -p "$1" 2>&1); status=$?
+            echo "$out"
+            if [ "$status" -eq 0 ]; then
+              echo "::notice::published $1"
+            elif echo "$out" | grep -qiE "already (uploaded|exists)|is already uploaded"; then
+              echo "::notice::$1 already on crates.io at this version — skipping"
+            else
+              echo "::error::publish failed for $1"; return "$status"
+            fi
+          }
+          publish arium-wire
+          publish arium
+          publish arium-leptos
