@@ -57,7 +57,7 @@ pub mod oauth;
 #[cfg(feature = "mail")]
 pub mod mail;
 
-pub use config::{AuditConfig, AuthConfig, AuthConfigBuilder};
+pub use config::{AuditConfig, AuthConfig, AuthConfigBuilder, RECOMMENDED_HSTS};
 
 #[cfg(feature = "ratelimit")]
 pub use config::RateLimitConfig;

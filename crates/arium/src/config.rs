@@ -73,7 +73,24 @@ pub struct AuthConfig {
     pub(crate) rate_limit: Option<RateLimitConfig>,
     pub(crate) session_table_name: String,
     pub(crate) audit: AuditConfig,
+    /// `Strict-Transport-Security` value, or `None` to omit the header.
+    /// Off by default — only meaningful over HTTPS and pins the domain to
+    /// HTTPS once a browser sees it, which is painful on plain-HTTP dev.
+    pub(crate) hsts: Option<String>,
+    /// `Content-Security-Policy` value, or `None` to omit the header. Off by
+    /// default because a wrong policy breaks Dioxus' wasm hydration; supply a
+    /// tuned value per app (see [`AuthConfigBuilder::content_security_policy`]).
+    pub(crate) csp: Option<String>,
+    /// Add `Secure` to the session cookie so browsers only send it over HTTPS.
+    /// `false` by default so plain-HTTP `localhost` dev still works; turn it on
+    /// in production (see [`AuthConfigBuilder::cookie_secure`]).
+    pub(crate) cookie_secure: bool,
 }
+
+/// A conservative `Strict-Transport-Security` value (2 years, subdomains,
+/// preload-eligible) to pass to [`AuthConfigBuilder::hsts`] in production.
+/// Only set this once you're certain every subdomain is HTTPS-only.
+pub const RECOMMENDED_HSTS: &str = "max-age=63072000; includeSubDomains; preload";
 
 impl AuthConfig {
     /// Start a new builder. With the `mail` feature `pool` AND `mailer` are
@@ -92,6 +109,9 @@ impl AuthConfig {
             rate_limit: Some(RateLimitConfig::default()),
             session_table_name: "arium_sessions".to_string(),
             audit: AuditConfig::default(),
+            hsts: None,
+            csp: None,
+            cookie_secure: false,
         }
     }
 
@@ -109,6 +129,9 @@ impl AuthConfig {
             rate_limit: Some(RateLimitConfig::default()),
             session_table_name: "arium_sessions".to_string(),
             audit: AuditConfig::default(),
+            hsts: None,
+            csp: None,
+            cookie_secure: false,
         }
     }
 }
@@ -127,6 +150,9 @@ pub struct AuthConfigBuilder {
     rate_limit: Option<RateLimitConfig>,
     session_table_name: String,
     audit: AuditConfig,
+    hsts: Option<String>,
+    csp: Option<String>,
+    cookie_secure: bool,
 }
 
 impl AuthConfigBuilder {
@@ -185,6 +211,22 @@ impl AuthConfigBuilder {
         self
     }
 
+    /// Add the `Secure` attribute to the session cookie so browsers only send
+    /// it over HTTPS. `false` by default.
+    ///
+    /// Enable this in production (pair it with [`Self::hsts`]). Leave it off
+    /// for plain-HTTP `localhost` development — a `Secure` cookie is never
+    /// sent over HTTP, so turning it on locally silently logs everyone out.
+    ///
+    /// Note the session cookie stays `SameSite=Lax`, *not* `Strict`: the
+    /// OAuth provider's callback is a cross-site top-level redirect, and only
+    /// `Lax` lets the session cookie (which carries the CSRF `state` + PKCE
+    /// verifier) ride that navigation. `Strict` would break OAuth sign-in.
+    pub fn cookie_secure(mut self, secure: bool) -> Self {
+        self.cookie_secure = secure;
+        self
+    }
+
     /// Replace the rate-limit settings. Pass `None` to disable rate limiting
     /// entirely (the layer is still attached, just permissive).
     #[cfg(feature = "ratelimit")]
@@ -205,6 +247,39 @@ impl AuthConfigBuilder {
     /// Replace the audit-log capture/retention settings.
     pub fn audit(mut self, audit: AuditConfig) -> Self {
         self.audit = audit;
+        self
+    }
+
+    /// Enable the `Strict-Transport-Security` response header with the given
+    /// value (e.g. [`RECOMMENDED_HSTS`]). Off by default.
+    ///
+    /// Only set this in production behind HTTPS: once a browser sees HSTS it
+    /// refuses plain-HTTP for the domain for `max-age` seconds, so enabling it
+    /// on a `localhost` dev build can lock you out of HTTP until the directive
+    /// expires.
+    pub fn hsts(mut self, value: impl Into<String>) -> Self {
+        self.hsts = Some(value.into());
+        self
+    }
+
+    /// Enable the `Content-Security-Policy` response header with the given
+    /// value. Off by default.
+    ///
+    /// A Dioxus fullstack app hydrates from wasm and an inline bootstrap
+    /// script, so the policy must permit them. A workable starting point:
+    ///
+    /// ```text
+    /// default-src 'self'; \
+    /// script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; \
+    /// style-src 'self' 'unsafe-inline'; \
+    /// img-src 'self' data: https:; \
+    /// connect-src 'self'
+    /// ```
+    ///
+    /// Tighten `script-src`/`style-src` with nonces or hashes once you've
+    /// confirmed hydration still works for your build.
+    pub fn content_security_policy(mut self, value: impl Into<String>) -> Self {
+        self.csp = Some(value.into());
         self
     }
 
@@ -232,6 +307,9 @@ impl AuthConfigBuilder {
             rate_limit: self.rate_limit,
             session_table_name: self.session_table_name,
             audit: self.audit,
+            hsts: self.hsts,
+            csp: self.csp,
+            cookie_secure: self.cookie_secure,
         })
     }
 }

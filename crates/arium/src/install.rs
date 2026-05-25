@@ -133,6 +133,11 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
         });
     }
 
+    // Build the security response header set now, while `cfg` is still whole
+    // (the session layer below moves fields out of it). The layer itself is
+    // attached last so it ends up outermost.
+    let security_headers = std::sync::Arc::new(build_security_headers(&cfg));
+
     // 4) Auth session layer (anonymous Guest user id 1).
     router = router.layer(
         AuthLayer::new(Some(cfg.pool.clone()))
@@ -147,6 +152,13 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
             // Don't bind sessions to client IP/UA — under `dx serve` the
             // browser may hit 127.0.0.1 on one request and ::1 on another.
             .with_ip_and_user_agent(false)
+            // `Secure` is opt-in (off for plain-HTTP localhost dev, on in
+            // production). The cookie stays `SameSite=Lax`, NOT `Strict`: the
+            // OAuth callback is a cross-site top-level redirect and only `Lax`
+            // sends the session cookie (which holds the CSRF state + PKCE
+            // verifier) on it. `Strict` would break OAuth sign-in. HttpOnly is
+            // on by default in axum_session.
+            .with_secure(cfg.cookie_secure)
             .with_lifetime(cfg.session_lifetime)
             .with_max_lifetime(cfg.session_max_lifetime)
             .with_max_age(Some(cfg.cookie_max_age)),
@@ -154,7 +166,84 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
     .await?;
     router = router.layer(SessionLayer::new(session_store));
 
+    // 6) Security response headers. Added last so it sits outermost and stamps
+    //    every response — including short-circuited ones like a rate-limit 429.
+    //    The static set is safe for any app; HSTS and CSP are opt-in (see the
+    //    builder) because they're environment-specific.
+    router = router.layer(axum::middleware::from_fn(
+        move |req: axum::extract::Request, next: axum::middleware::Next| {
+            let headers = security_headers.clone();
+            async move {
+                let mut resp = next.run(req).await;
+                let out = resp.headers_mut();
+                for (name, value) in headers.iter() {
+                    out.insert(name.clone(), value.clone());
+                }
+                resp
+            }
+        },
+    ));
+
     Ok(router)
+}
+
+/// Build the security response headers for [`install`]. The first block is a
+/// conservative, behavior-safe default set; `Strict-Transport-Security` and
+/// `Content-Security-Policy` are appended only when the consumer opted in via
+/// the builder (they're environment-specific — see [`crate::AuthConfigBuilder`]).
+fn build_security_headers(cfg: &AuthConfig) -> Vec<(http::HeaderName, http::HeaderValue)> {
+    use http::{HeaderName, HeaderValue};
+
+    let mut headers: Vec<(HeaderName, HeaderValue)> = vec![
+        // Stop content-type sniffing.
+        (
+            HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ),
+        // Don't leak full URLs to other origins.
+        (
+            HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ),
+        // Clickjacking: allow same-origin framing, block cross-origin.
+        (
+            HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("SAMEORIGIN"),
+        ),
+        // Isolate this browsing context from cross-origin openers. arium's
+        // OAuth is redirect-based (not popup), so this won't break sign-in.
+        (
+            HeaderName::from_static("cross-origin-opener-policy"),
+            HeaderValue::from_static("same-origin"),
+        ),
+        // No legacy Flash/PDF cross-domain access.
+        (
+            HeaderName::from_static("x-permitted-cross-domain-policies"),
+            HeaderValue::from_static("none"),
+        ),
+        // Drop access to powerful features this surface doesn't use.
+        (
+            HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+        ),
+    ];
+
+    // Opt-in, environment-specific. Skip (with a warning) if the configured
+    // value isn't a valid header value rather than failing the whole install.
+    if let Some(hsts) = cfg.hsts.as_deref() {
+        match HeaderValue::from_str(hsts) {
+            Ok(v) => headers.push((http::header::STRICT_TRANSPORT_SECURITY, v)),
+            Err(e) => eprintln!("[security] WARN: ignoring invalid HSTS value: {e}"),
+        }
+    }
+    if let Some(csp) = cfg.csp.as_deref() {
+        match HeaderValue::from_str(csp) {
+            Ok(v) => headers.push((http::header::CONTENT_SECURITY_POLICY, v)),
+            Err(e) => eprintln!("[security] WARN: ignoring invalid CSP value: {e}"),
+        }
+    }
+
+    headers
 }
 
 /// Like `tower_governor::key_extractor::SmartIpKeyExtractor` but falls back
