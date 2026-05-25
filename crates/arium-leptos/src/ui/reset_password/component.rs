@@ -62,7 +62,9 @@ pub fn ResetPassword(
                                     .into_any()
                             } else {
                                 view! {
-                                    <form class="dx-auth-form" on:submit=on_submit.clone()>
+                                    // POST so the no-JS / pre-hydration native submit doesn't leak
+                                    // the new password into the URL; `on:submit` handles the live path.
+                                    <form class="dx-auth-form" method="post" on:submit=on_submit.clone()>
                                         <div class="dx-auth-field">
                                             <Label html_for="dx-reset-password">"New password"</Label>
                                             <Input

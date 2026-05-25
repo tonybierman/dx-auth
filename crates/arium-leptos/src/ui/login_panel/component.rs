@@ -125,7 +125,10 @@ pub fn LoginPanel(
             </CardHeader>
 
             <Show when=move || show_email_password>
-                <form class="login-form" on:submit=on_form_submit>
+                // `method="post"` only governs the no-JS / pre-hydration native submit
+                // (`on:submit` intercepts the live path): it keeps typed credentials out
+                // of the URL query string → access logs/history/Referer.
+                <form class="login-form" method="post" on:submit=on_form_submit>
                     <div class="login-field">
                         <Label html_for="login-email" class="login-label">
                             "Email"

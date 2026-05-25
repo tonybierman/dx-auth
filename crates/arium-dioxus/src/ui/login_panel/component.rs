@@ -134,6 +134,10 @@ pub fn LoginPanel(
 
             if show_email_password {
                 form {
+                    // `onsubmit` intercepts via `prevent_default`, so this method only
+                    // governs the no-JS / pre-hydration native submit: POST keeps typed
+                    // credentials out of the URL (query string → access logs/history/Referer).
+                    method: "post",
                     class: Styles::login_form,
                     onsubmit: move |evt| {
                         evt.prevent_default();
