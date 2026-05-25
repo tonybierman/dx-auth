@@ -57,7 +57,9 @@ pub fn ForgotPassword(
                                     .into_any()
                             } else {
                                 view! {
-                                    <form class="dx-auth-form" on:submit=on_submit>
+                                    // POST so the no-JS / pre-hydration native submit doesn't
+                                    // leak the email into the URL; `on:submit` handles the live path.
+                                    <form class="dx-auth-form" method="post" on:submit=on_submit>
                                         <div class="dx-auth-field">
                                             <Label html_for="dx-forgot-email">"Email"</Label>
                                             <Input

@@ -55,6 +55,9 @@ pub fn ResetPassword(
                             }
                         } else {
                             form {
+                                // POST so the no-JS / pre-hydration native submit doesn't leak
+                                // the new password into the URL; `onsubmit` handles the live path.
+                                method: "post",
                                 class: Styles::dx_auth_form,
                                 onsubmit: move |evt| {
                                     evt.prevent_default();
