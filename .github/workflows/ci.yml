@@ -87,6 +87,53 @@ jobs:
         if: always()
         run: kill "${SERVER_PID}" 2>/dev/null || true
 
+  # Same access-control gate for the Leptos adapter, against
+  # leptos-fullstack-example. Leptos server fns are POST-only and form-encoded
+  # (server_fn's PostUrl default), so they have a dedicated probe:
+  # examples/leptos-fullstack-example/access-control-probe.sh (same 3 phases).
+  access-control-leptos:
+    name: access-control probe (leptos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install pinned toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+      - name: Build example (ssr)
+        run: cargo build -p leptos-fullstack-example --no-default-features --features ssr
+      - name: Boot the example
+        env:
+          LEPTOS_SITE_ADDR: "127.0.0.1:3000"
+          LEPTOS_SITE_ROOT: "${{ runner.temp }}/leptos-site"
+          DATABASE_URL: "sqlite://${{ runner.temp }}/ac-leptos.db?mode=rwc"
+          DX_AUTH_SKIP_EMAIL_VERIFICATION: "1"
+        run: |
+          BIN=target/debug/leptos-fullstack-example
+          # file_and_error_handler serves from the site root; a plain cargo
+          # build (no cargo-leptos) doesn't populate it. Empty dir is fine —
+          # the probe only hits /api plus a non-asset GET /.
+          mkdir -p "${{ runner.temp }}/leptos-site"
+          nohup "$BIN" > "${{ runner.temp }}/leptos.log" 2>&1 &
+          echo "LEPTOS_PID=$!" >> "$GITHUB_ENV"
+      - name: Wait for readiness
+        run: |
+          curl -s --retry 60 --retry-delay 1 --retry-connrefused --max-time 5 \
+            -o /dev/null -w 'server ready: HTTP %{http_code}\n' http://127.0.0.1:3000/
+      - name: Run access-control probe
+        env:
+          HOST: "127.0.0.1"
+          PORT: "3000"
+          NONADMIN_EMAIL: probe-nonadmin@example.com
+        run: bash examples/leptos-fullstack-example/access-control-probe.sh
+      - name: Server log (on failure)
+        if: failure()
+        run: cat "${{ runner.temp }}/leptos.log" || true
+      - name: Stop the example
+        if: always()
+        run: kill "${LEPTOS_PID}" 2>/dev/null || true
+
   # Compile-check the realistic feature combos so a future refactor doesn't
   # silently break consumers who turn off `default-features`. Pure
   # `cargo check`, no test execution — fast. Covers both UI adapters: the
