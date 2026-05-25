@@ -862,24 +862,21 @@ pub enum VerifyOutcome {
     Invalid,
 }
 
-/// A throwaway Argon2 hash that no real password produces, used to equalize
-/// the cost of the "no such account" and "corrupt stored hash" paths in
-/// [`verify_password_user`]. Without it, those paths skip the (deliberately
-/// expensive) Argon2 verify and return ~25x faster than a wrong-password
-/// attempt against a real account — a timing side-channel that lets an
-/// attacker enumerate which emails have accounts, defeating the
-/// indistinguishability that [`VerifyOutcome::Invalid`] promises. Built once
-/// with the default Argon2 params (the same `hash_password` uses) so the
-/// dummy verify costs the same as a genuine one.
-static DUMMY_PASSWORD_HASH: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-    use argon2::Argon2;
-    use argon2::password_hash::{PasswordHasher, SaltString, rand_core::OsRng};
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(b"timing-equalization-dummy", &salt)
-        .expect("hashing a fixed dummy password with default params never fails")
-        .to_string()
-});
+/// A precomputed throwaway Argon2 hash, used to equalize the cost of the "no
+/// such account" and "corrupt stored hash" paths in [`verify_password_user`].
+/// Without it, those paths skip the (deliberately expensive) Argon2 verify and
+/// return ~25x faster than a wrong-password attempt against a real account — a
+/// timing side-channel that lets an attacker enumerate which emails have
+/// accounts, defeating the indistinguishability that [`VerifyOutcome::Invalid`]
+/// promises.
+///
+/// Hardcoded rather than generated at runtime so there's no fallible hashing
+/// (and no `unwrap`/`expect`) in this path; it's a hash of a fixed throwaway
+/// string — no secret. Its params (`m=19456,t=2,p=1`) are `Argon2::default()`,
+/// matching what `hash_password` produces, so verifying against it costs the
+/// same as verifying a genuine user's hash. If the default params are ever
+/// bumped, regenerate this so the costs stay aligned.
+const DUMMY_PASSWORD_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$OSdEu4xJYj4c5XviuP4CTQ$8LSH0M1A859epUylwUTwZJUp5O8rAtv0wURpMnvMbE4";
 
 /// Run an Argon2 verify against [`DUMMY_PASSWORD_HASH`] and discard the
 /// result. Called on the early-return branches of [`verify_password_user`]
@@ -888,7 +885,7 @@ static DUMMY_PASSWORD_HASH: std::sync::LazyLock<String> = std::sync::LazyLock::n
 fn burn_password_verify(password: &str) {
     use argon2::Argon2;
     use argon2::password_hash::{PasswordHash, PasswordVerifier};
-    if let Ok(parsed) = PasswordHash::new(DUMMY_PASSWORD_HASH.as_str()) {
+    if let Ok(parsed) = PasswordHash::new(DUMMY_PASSWORD_HASH) {
         let _ = Argon2::default().verify_password(password.as_bytes(), &parsed);
     }
 }
