@@ -34,6 +34,15 @@ jobs:
       # what we're testing, so it's excluded.
       - name: Test workspace
         run: cargo test --workspace --exclude dioxus-fullstack-example
+      # Doctests above compile/run the `//!`/`///` code examples (rust / no_run
+      # fences; `ignore` blocks are skipped). This additionally fails the build
+      # on an unresolved intra-doc link (`[`Foo`]` that points nowhere), which
+      # rustdoc otherwise only warns about — the rustdoc-side counterpart to the
+      # README link guard in the `readme` job.
+      - name: Check intra-doc links resolve
+        env:
+          RUSTDOCFLAGS: -D rustdoc::broken_intra_doc_links
+        run: cargo doc --no-deps --workspace --exclude dioxus-fullstack-example --exclude leptos-fullstack-example
 
   # Access control is gated by in-process integration tests in the adapter
   # crates (crates/arium-{dioxus,leptos}/tests/access_control.rs), which the
@@ -279,6 +288,19 @@ jobs:
             cargo rdme --check -w "$crate"
             echo "::endgroup::"
           done
+      - name: Guard against broken intra-doc links in generated READMEs
+        run: |
+          # cargo-rdme 1.5.0 copies crate-root //! intra-doc links verbatim into the
+          # README without resolving them, so [`Foo`] and [`Foo`](bar::baz) render as
+          # broken links on crates.io. The --check sync guard above won't catch it
+          # (the README still "matches" the doc comment). Flag any backtick-wrapped
+          # link text that isn't an explicit http(s):// URL.
+          if broken=$(grep -rnoE '\[`[^`]+`\]\([^)]*\)|\[`[^`]+`\]' crates/*/README.md | grep -vE '\]\(https?://'); then
+            echo "Broken intra-doc link(s) in generated README(s):"
+            echo "$broken"
+            echo "Fix: flatten the crate-root //! doc comment to plain code spans, then rerun cargo rdme -w <crate>."
+            exit 1
+          fi
 
   # Secret scan on the full repo. Gating: a hit here means a credential
   # is about to land in git history — that's worth blocking the merge.

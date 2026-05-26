@@ -12,7 +12,7 @@ See also [INSTALL_LEPTOS.md](INSTALL_LEPTOS.md) and [USAGE_LEPTOS.md](USAGE_LEPT
 Defaults give you "everything on, server build, SQLite backend, UI included":
 
 ```toml
-default = ["ssr", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit", "tokens"]
+default = ["ssr", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit", "tokens", "sql-membership"]
 ```
 
 | Feature | Default | Gates |
@@ -29,7 +29,8 @@ default = ["ssr", "ui", "sqlite", "oauth-github", "mfa", "mail", "ratelimit", "t
 | `mfa` | yes | TOTP enrollment + verification, recovery codes (+ `MfaChallenge` / `MfaSetup` UI). |
 | `mail` | yes | `Mailer` (SMTP + dev `.eml` fallback) and the email-verification / password-reset endpoints + UI. Without `mail`, signup auto-marks accounts verified. |
 | `ratelimit` | yes | Per-IP rate limiting via `tower_governor`. |
-| `tokens` | yes | Personal API tokens (`ApiTokens` UI + `create/list/revoke` server fns). |
+| `tokens` | yes | Personal API tokens (`ApiTokens` UI + `create/list/revoke` server fns), plus the `Authorization: Bearer` auth middleware `install` applies automatically. |
+| `sql-membership` | yes | Bundled per-resource membership storage: `SqlMembershipStore` over the `arium_resource_members` table + `membership_migrator()`. Turn off if your app owns its own membership table (implement `MembershipStore` directly). |
 
 > **The capability flags and the backend must be present on _both_ builds**
 > (`ssr` and `hydrate`). They only pull in engine code on the `ssr` build, but

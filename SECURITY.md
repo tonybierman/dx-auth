@@ -89,6 +89,18 @@ It is **not** intended to defend against:
 - **Constant-time login.** Sign-in runs an Argon2 verify on every attempt —
   including unknown emails — so response timing can't be used to enumerate
   which addresses have accounts.
+- **API tokens** are shown in cleartext only once at creation; only a prefix
+  and a SHA-256 hash are stored. The `Authorization: Bearer` middleware
+  (applied by `install` under the `tokens` feature) matches the hash against
+  non-revoked `api_keys` rows — a malformed or revoked token is silently
+  ignored, never trusted.
+- **Per-resource authorization (`arium-authz`).** Resource-scoped checks are
+  fresh, per-request, and default-deny: `require_resource` (and the `AuthzCtx`
+  guard) hits the app's membership storage on every call — no caching — and
+  treats "no relationship" and a below-threshold role identically as a deny,
+  keeping a storage lookup failure distinct from a deliberate deny so the
+  former can never be silently read as "no access." Denials write a
+  `resource.access.denied` audit row.
 
 ### Dependency hygiene (CI-enforced)
 

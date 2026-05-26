@@ -1,7 +1,7 @@
 //! Per-resource UI gate (Leptos): render children only when the signed-in user
-//! holds at least a given [`ResourceRole`] on a specific resource.
+//! holds at least a given [`ResourceRole`](crate::ResourceRole) on a specific resource.
 //!
-//! Unlike [`PermissionGate`](super::permissions::PermissionGate) — which checks
+//! Unlike [`PermissionGate`](crate::ui::permissions::PermissionGate) — which checks
 //! the session's flat permission-token snapshot entirely client-side — this
 //! fetches the caller's role for one specific resource from the server
 //! ([`get_resource_role`](crate::server::get_resource_role)). It is a
@@ -15,7 +15,7 @@ use arium_wire::ResourceRole;
 
 use crate::server::get_resource_role;
 
-/// Fetch the current user's [`ResourceRole`] on `(kind, id)` as a client-only
+/// Fetch the current user's [`ResourceRole`](crate::ResourceRole) on `(kind, id)` as a client-only
 /// [`LocalResource`] (the same shape `PermissionsProvider` uses, so it renders
 /// a stable loading state through hydration). Once resolved, `Ok(None)` means
 /// "no relationship".

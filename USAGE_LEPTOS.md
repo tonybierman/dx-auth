@@ -232,13 +232,87 @@ view! { <PermissionGate policy=admin_policy()> … </PermissionGate> }
 `Policy` supports tier-building (`.with(...)`) and resource scoping
 (`.scoped(...)`); it is deliberately not a full boolean DSL.
 
+### Per-resource (relationship-based) authorization
+
+The token RBAC above is *global* — "what is this user across the whole app?"
+Collaborative apps need a second axis: "what is this user **on this one
+resource?**" (a board they own, a doc they can edit). That's the `arium::authz`
+lattice — `Viewer < Editor < Manager < Owner` — re-exported through the adapter
+and enforced fresh on every request, default-deny.
+
+**Wire a membership store once, at setup** (extend the §1 server bootstrap).
+arium stores no memberships itself — you supply a `ResourceAuthority`. The
+batteries-included option is `SqlMembershipStore` over an arium-owned table:
+
+```rust
+arium_leptos::migrator().run(&pool).await?;
+arium_leptos::membership_migrator().run(&pool).await?; // arium_resource_members table
+
+let authority: arium_leptos::SharedResourceAuthority =
+    std::sync::Arc::new(arium_leptos::SqlMembershipStore);
+let cfg = arium_leptos::AuthConfig::builder(pool.clone(), mailer)
+    .resource_authority(authority)
+    .build()?;
+```
+
+Already own a memberships table? Implement `MembershipStore` against it and
+register that instead — and drop the `sql-membership` feature to skip the
+bundled table.
+
+**Guard every resource-scoped mutation** with the `AuthzCtx` extractor, pulled
+from the request the same way as every other extractor (§1). It bundles the
+caller (token- or session-resolved), the pool, your authority, and the audit
+context, so one line authorizes and records a `resource.access.denied` row on a
+denial:
+
+```rust
+#[server]
+pub async fn rename_board(board_id: i64, name: String) -> Result<(), ServerFnError> {
+    let ctx: arium_leptos::AuthzCtx = leptos_axum::extract().await?;
+    // 403 unless the caller holds >= Editor on this board:
+    ctx.require("board", board_id, arium_leptos::ResourceRole::Editor)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    // ... authorized: do the rename
+    Ok(())
+}
+```
+
+Manage memberships through the lifecycle composites, which enforce the
+invariants (a resource can't be left without an Owner): `grant_membership`,
+`revoke_membership`, `transfer_ownership`. To let a global capability — a
+super-admin, a support token — reach into resource scope, use
+`require_resource_or_permission`: it passes on *either* a sufficient resource
+role *or* a global permission token, and reports which axis authorized so you
+can log the override.
+
 ## 6. API tokens
 
 The `tokens` feature ships the `ApiTokens` screen and `create/list/revoke`
 server fns. The cleartext secret is shown **once** at creation; only a prefix
-and a SHA-256 hash are stored. The library does not ship a Bearer-token
-extractor — validate incoming tokens yourself by hashing the header and looking
-up `api_keys.token_hash`, which keeps the auth path explicit.
+and a SHA-256 hash are stored.
+
+Validating those tokens on the way in is **built in**: when the `tokens`
+feature is on, `install` layers a bearer-auth middleware automatically, so a
+request carrying `Authorization: Bearer <token>` is authenticated transparently.
+To read the acting user in your own server fns, extract `AuthUser` — it resolves
+from the token first, then the session cookie, and rejects with `401` when
+neither yields a real user, so the same fn serves browser and programmatic
+clients:
+
+```rust
+#[server]
+pub async fn create_card(/* … */) -> Result<(), ServerFnError> {
+    let user: arium_leptos::AuthUser = leptos_axum::extract().await?;
+    let user_id = user.id;   // i64, guaranteed non-anonymous
+    // ... domain authz + DB work ...
+    Ok(())
+}
+```
+
+Only a non-server-fn path (a custom axum handler) needs the raw lookup;
+`hash_api_token` is exported for it — hash the header and match
+`api_keys.token_hash` where `revoked_at IS NULL`.
 
 ## What the library owns vs what you own
 

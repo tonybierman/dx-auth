@@ -1,8 +1,12 @@
 //! Single entry point that bolts arium onto an `axum::Router`.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # async fn doc() -> anyhow::Result<axum::Router> {
+//! # let my_axum_router = axum::Router::new();
+//! # let cfg: arium::AuthConfig = unimplemented!();
 //! let router = arium::install(my_axum_router, cfg).await?;
 //! Ok(router)
+//! # }
 //! ```
 
 use crate::pool::SessionPool;

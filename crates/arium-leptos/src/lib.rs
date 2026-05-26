@@ -12,7 +12,11 @@
 //! `hydrate` cargo features (`#[cfg(feature = "ssr")]`), not by
 //! `cfg(target_arch = "wasm32")` — Leptos compiles the crate once per side.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # #[allow(unused_imports)]
+//! # async fn doc() -> anyhow::Result<()> {
+//! # let pool: arium_leptos::pool::Pool = unimplemented!();
+//! # let app = axum::Router::new();
 //! // Server (`ssr` feature): layer the engine onto your Leptos axum router.
 //! use arium_leptos::{AuthConfig, Mailer, install, migrator};
 //!
@@ -23,6 +27,8 @@
 //! // Client + server: wrap the router and drop in components.
 //! use arium_leptos::ui::{LoginPanel, OAuthProvidersProvider, PermissionsProvider};
 //! // <PermissionsProvider><OAuthProvidersProvider> <Router/> … <LoginPanel/> … </…></…>
+//! # let _ = app;
+//! # Ok(()) }
 //! ```
 
 #![allow(clippy::needless_doctest_main)]

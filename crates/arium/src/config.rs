@@ -178,11 +178,17 @@ impl AuthConfigBuilder {
     /// Append a single provider, lazily initialising the registry on first
     /// call. Convenient when registering one provider at a time:
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
+    /// # fn doc() -> anyhow::Result<()> {
+    /// # use arium::{AuthConfig, oauth::github::GithubProvider};
+    /// # let pool: arium::pool::Pool = unimplemented!();
+    /// # let mailer: arium::Mailer = unimplemented!();
     /// let mut builder = AuthConfig::builder(pool, mailer);
     /// if let Some(gh) = GithubProvider::from_env()? {
     ///     builder = builder.oauth_provider(gh)?;
     /// }
+    /// # let _ = builder;
+    /// # Ok(()) }
     /// ```
     ///
     /// Returns `Err` if lazy initialisation of the registry's HTTP client
@@ -264,11 +270,19 @@ impl AuthConfigBuilder {
     /// adapters' resource gates read. Equivalent to layering
     /// `axum::Extension(authority)` onto the router yourself.
     ///
-    /// ```rust,ignore
-    /// let authority: arium::authz::SharedResourceAuthority = std::sync::Arc::new(BoardAuthority);
+    /// ```rust,no_run
+    /// # fn doc() -> anyhow::Result<()> {
+    /// # use arium::AuthConfig;
+    /// # let pool: arium::pool::Pool = unimplemented!();
+    /// # let mailer: arium::Mailer = unimplemented!();
+    /// // `SqlMembershipStore` is arium's bundled authority; substitute your own.
+    /// let authority: arium::authz::SharedResourceAuthority =
+    ///     std::sync::Arc::new(arium::SqlMembershipStore);
     /// let cfg = AuthConfig::builder(pool, mailer)
     ///     .resource_authority(authority)
     ///     .build()?;
+    /// # let _ = cfg;
+    /// # Ok(()) }
     /// ```
     pub fn resource_authority(mut self, authority: crate::authz::SharedResourceAuthority) -> Self {
         self.resource_authority = Some(authority);

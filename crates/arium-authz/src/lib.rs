@@ -6,13 +6,13 @@
 //! is this user *with respect to this one resource?*" — the defining need of
 //! collaborative apps (a board, a document, a project a user owns/edits/views).
 //!
-//! - [`authz`] — the enforcement boundary: the [`ResourceRole`] lattice,
-//!   [`ResourceAuthority`] (the one trait an app implements over its own
-//!   storage), and [`require_resource`] (fresh, per-request, default-deny).
+//! - `authz` — the enforcement boundary: the `ResourceRole` lattice,
+//!   `ResourceAuthority` (the one trait an app implements over its own
+//!   storage), and `require_resource` (fresh, per-request, default-deny).
 //!   Always available.
-//! - [`membership`] — the lifecycle layer: [`MembershipStore`] (a supertrait of
-//!   [`ResourceAuthority`]) and the invariant-bearing composites
-//!   [`grant_membership`] / [`revoke_membership`] / [`transfer_ownership`].
+//! - `membership` — the lifecycle layer: `MembershipStore` (a supertrait of
+//!   `ResourceAuthority`) and the invariant-bearing composites
+//!   `grant_membership` / `revoke_membership` / `transfer_ownership`.
 //!   Behind the default-on `lifecycle` feature; turning it off drops the
 //!   sqlx-transaction surface for pure-enforcement embedders.
 //!

@@ -22,8 +22,10 @@ rebuilding it, and you keep your own router, schema, and UI.
 What's included:
 
 - Email + password sign-in / sign-up with Argon2id hashing.
-- "Continue with GitHub" OAuth (env-driven; the button hides itself when
-  unconfigured), with account linking to email-matched local accounts.
+- OAuth / OpenID Connect sign-in — GitHub by default, plus opt-in Google,
+  Microsoft/Entra, and any generic OIDC issuer (env-driven; each button hides
+  itself when unconfigured), with account linking to email-matched local
+  accounts.
 - Forgot-password reset and email-verification flows over a pluggable mailer
   (SMTP via [lettre](https://github.com/lettre/lettre), or a dev fallback that
   writes `.eml` files locally).
@@ -31,7 +33,12 @@ What's included:
 - Per-IP rate limiting and "remember me" long-lived sessions.
 - Role-based access control: system `admin` / `user` roles plus user-defined
   roles, scoped permission tokens, route guards, and element-level gates.
-- Personal API tokens for CLI / programmatic clients.
+- Per-resource, relationship-based authorization (the second axis): a role
+  lattice (Viewer / Editor / Manager / Owner) with default-deny enforcement and
+  a grant / revoke / transfer membership lifecycle — for collaborative apps
+  where access is "what can this user do with *this* board / doc / project?"
+- Personal API tokens for CLI / programmatic clients, with built-in
+  `Authorization: Bearer` authentication.
 - An append-only audit log of auth and admin events, with a built-in viewer.
 - Drop-in UI screens (login, MFA, account settings, admin console) for both
   Dioxus and Leptos.
@@ -43,6 +50,8 @@ What's included:
 | [`arium`](crates/arium) | The framework-agnostic auth engine (axum + sqlx). Owns the schema, server logic, and the `install` helper. |
 | [`arium-dioxus`](crates/arium-dioxus) | Dioxus 0.7 adapter — wraps the engine in server functions and UI components. |
 | [`arium-leptos`](crates/arium-leptos) | Leptos 0.8 adapter — same surface, Leptos idioms. |
+| [`arium-authz`](crates/arium-authz) | Per-resource (relationship-based) authorization — the role lattice, default-deny enforcement, and the membership lifecycle. Standalone; the engine re-exports it as `arium::authz` / `arium::membership`. |
+| [`arium-pool`](crates/arium-pool) | Compile-time sqlx backend selection (`sqlite` / `postgres`) shared by the engine and `arium-authz`. Pulled in transitively. |
 | [`arium-wire`](crates/arium-wire) | Shared types that cross the client/server boundary. Pulled in transitively; you rarely depend on it directly. |
 
 Pick the adapter for your framework (`arium-dioxus` or `arium-leptos`) — it

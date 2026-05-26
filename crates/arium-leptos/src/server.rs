@@ -134,7 +134,7 @@ pub async fn get_current_user_profile() -> Result<UserProfile, ServerFnError> {
     })
 }
 
-/// The caller's [`ResourceRole`] on `(kind, id)`, or `None` when they hold no
+/// The caller's [`ResourceRole`](crate::ResourceRole) on `(kind, id)`, or `None` when they hold no
 /// relationship to it (or aren't signed in). Drives the
 /// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) UI — a read for
 /// rendering decisions, **not** the enforcement boundary. Resource-scoped

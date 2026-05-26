@@ -86,7 +86,7 @@ pub async fn require_resource_or_permission(
 /// audit row — `actor_id = user_id`, details `{"kind","id","min_role"}` (the
 /// canonical lowercase role via [`ResourceRole::as_str`]), stamped with
 /// whatever IP/User-Agent the supplied [`AuditCtx`](crate::extract::AuditCtx)
-/// carries — and then returns `Forbidden` unchanged. A [`Lookup`] error passes
+/// carries — and then returns `Forbidden` unchanged. A [`Lookup`](ResourceAuthzError::Lookup) error passes
 /// through untouched: a storage failure is never recast as a deny, and never
 /// audited as one. The error is returned raw so each caller maps it to its own
 /// surface (a `403`/`ServerFnError`, a `404` for an existence-hiding SSE path,

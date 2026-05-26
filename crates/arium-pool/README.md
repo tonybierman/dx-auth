@@ -13,7 +13,7 @@ Compile-time-selected sqlx pool aliases — the one place the backend
 
 Enable exactly one of the `sqlite` or `postgres` features. Both the arium
 auth engine and `arium-authz` depend on this crate, so they agree on a
-single concrete [`Pool`] type and a single "exactly one backend" guard:
+single concrete `Pool` type and a single "exactly one backend" guard:
 a feature-unification mistake fails here, loudly, rather than as a cryptic
 `SqlitePool`-vs-`PgPool` mismatch deep in a transaction signature.
 

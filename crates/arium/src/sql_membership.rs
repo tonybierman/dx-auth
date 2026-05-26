@@ -4,11 +4,19 @@
 //! Use this when you don't already have a membership table and want resource
 //! authz to work out of the box:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # async fn doc() -> anyhow::Result<()> {
+//! # use arium::{AuthConfig, ResourceRole, authz::ResourceRef};
+//! # let pool: arium::pool::Pool = unimplemented!();
+//! # let mailer: arium::Mailer = unimplemented!();
+//! # let (actor, target): (i64, i64) = (1, 2);
+//! # let r = ResourceRef::new("board", 42);
 //! let authority: arium::SharedResourceAuthority = std::sync::Arc::new(arium::SqlMembershipStore);
-//! let cfg = AuthConfig::builder(pool, mailer).resource_authority(authority).build()?;
+//! let cfg = AuthConfig::builder(pool.clone(), mailer).resource_authority(authority).build()?;
 //! // grant / revoke / transfer via the arium::membership composites:
 //! arium::grant_membership(&arium::SqlMembershipStore, &pool, actor, r, target, ResourceRole::Editor).await?;
+//! # let _ = cfg;
+//! # Ok(()) }
 //! ```
 //!
 //! Apps that already own a membership table implement [`MembershipStore`]

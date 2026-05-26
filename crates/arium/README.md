@@ -50,14 +50,13 @@ same way as `GithubProvider` above.
 
 ### Per-resource authorization
 
-Beyond global RBAC (flat permission tokens), the [`authz`] module adds
+Beyond global RBAC (flat permission tokens), the `authz` module adds
 relationship-based checks — "what role does this user hold on *this*
-resource?" Implement [`authz::ResourceAuthority`] over your own membership
-storage and guard resource-scoped mutations with
-[`require_resource`](authz::require_resource); it does a fresh per-request
-lookup and default-denies. arium ships no membership table — the app owns
-that storage; arium owns the enforcement boundary and the [`ResourceRole`]
-lattice.
+resource?" Implement `authz::ResourceAuthority` over your own membership
+storage and guard resource-scoped mutations with `require_resource`; it
+does a fresh per-request lookup and default-denies. arium ships no
+membership table — the app owns that storage; arium owns the enforcement
+boundary and the `ResourceRole` lattice.
 
 <!-- cargo-rdme end -->
 
@@ -86,7 +85,8 @@ arium = { version = "0.1", default-features = false, features = ["postgres", "oa
 | `mfa`          | yes     | TOTP MFA setup and challenge                   |
 | `mail`         | yes     | Email verification & password reset (`Mailer`) |
 | `ratelimit`    | yes     | Per-IP rate limiting on auth routes            |
-| `tokens`       | yes     | API token issuance and validation             |
+| `tokens`       | yes     | API token issuance, validation, and `Bearer` auth |
+| `sql-membership` | yes   | Bundled `SqlMembershipStore` + `membership_migrator()` for per-resource authz |
 
 Without `mail`, `AuthConfig::builder` takes the pool alone. Full API reference on [docs.rs](https://docs.rs/arium).
 

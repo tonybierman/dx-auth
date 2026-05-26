@@ -225,10 +225,83 @@ RequirePermission { policy: admin_policy(), redirect_to: "/", AdminBody {} }
 `Policy` supports tier-building (`.with(...)`) and resource scoping
 (`.scoped(...)`); it is deliberately not a full boolean DSL.
 
+### Per-resource (relationship-based) authorization
+
+The token RBAC above is *global* — "what is this user across the whole app?"
+Collaborative apps need a second axis: "what is this user **on this one
+resource?**" (a board they own, a doc they can edit). That's the `arium::authz`
+lattice — `Viewer < Editor < Manager < Owner` — re-exported through the adapter
+and enforced fresh on every request, default-deny.
+
+**Wire a membership store once, at setup.** arium stores no memberships itself —
+you supply a `ResourceAuthority`. The batteries-included option is
+`SqlMembershipStore` over an arium-owned table; run its migrator alongside the
+core one and register it on the builder:
+
+```rust
+arium_dioxus::migrator().run(&pool).await?;
+arium_dioxus::membership_migrator().run(&pool).await?; // arium_resource_members table
+
+let authority: arium_dioxus::SharedResourceAuthority =
+    std::sync::Arc::new(arium_dioxus::SqlMembershipStore);
+let builder = arium_dioxus::AuthConfig::builder(pool, mailer)
+    .resource_authority(authority);
+```
+
+Already own a memberships table? Implement `MembershipStore` against it and
+register that instead — and drop the `sql-membership` feature to skip the
+bundled table.
+
+**Guard every resource-scoped mutation** with the `AuthzCtx` extractor. It
+bundles the caller (token- or session-resolved), the pool, your authority, and
+the audit context, so one line authorizes and records a `resource.access.denied`
+row on a denial:
+
+```rust
+#[post("/api/boards/rename", ctx: arium_dioxus::AuthzCtx)]
+pub async fn rename_board(board_id: i64, name: String) -> Result<(), ServerFnError> {
+    #[cfg(feature = "server")]
+    {
+        // 403 unless the caller holds >= Editor on this board:
+        ctx.require("board", board_id, arium_dioxus::ResourceRole::Editor)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        // ... authorized: do the rename
+    }
+    Ok(())
+}
+```
+
+Manage memberships through the lifecycle composites, which enforce the
+invariants (a resource can't be left without an Owner): `grant_membership`,
+`revoke_membership`, `transfer_ownership`. To let a global capability — a
+super-admin, a support token — reach into resource scope, use
+`require_resource_or_permission`: it passes on *either* a sufficient resource
+role *or* a global permission token, and reports which axis authorized so you can
+log the override.
+
 ## 6. Reading the current user in your own server fns
 
-`arium_dioxus::auth::Session` is the `axum_session_auth` extractor. Use it as
-the auth attribute on your server fns:
+For "is there a logged-in caller?", take the `AuthUser` extractor. It resolves
+the acting user from an `Authorization: Bearer` API token (when the `tokens`
+feature is on) **or** the session cookie, and rejects with `401` when neither
+yields a real user — so the same handler serves both browser and programmatic
+clients:
+
+```rust
+#[post("/api/cards/new", user: arium_dioxus::AuthUser)]
+pub async fn create_card(/* … */) -> Result<Card, ServerFnError> {
+    #[cfg(feature = "server")]
+    {
+        let user_id = user.id;   // already an i64, guaranteed non-anonymous
+        // ... domain authz + DB work ...
+    }
+}
+```
+
+If you need the lower-level handle, `arium_dioxus::auth::Session` is the raw
+`axum_session_auth` extractor — but note it's **cookie-only** (it doesn't see
+bearer tokens), so prefer `AuthUser` unless you specifically need the session:
 
 ```rust
 #[post("/api/cards/new", auth: arium_dioxus::auth::Session)]
@@ -251,9 +324,15 @@ server fns so users can self-manage personal tokens for CLI tools and other
 clients that can't carry a session cookie. The cleartext secret is shown
 **once** at creation; only a prefix and a SHA-256 hash are stored.
 
-The library does not ship a Bearer-token extractor — validate incoming tokens
-yourself by hashing the header and looking it up, which keeps the auth path
-explicit:
+Validating those tokens on the way in is **built in**: when the `tokens`
+feature is on, `install` layers a bearer-auth middleware automatically, so a
+request carrying `Authorization: Bearer <token>` is authenticated transparently
+— you wire nothing. The `AuthUser` (§6) and `AuthzCtx` (§5) extractors resolve
+the caller from the token first, then fall back to the session cookie, so the
+same server fns cover both browser and programmatic clients.
+
+You only reach for the raw lookup on a non-server-fn path (a custom axum
+handler, say). `hash_api_token` is exported for that:
 
 ```rust
 use arium_dioxus::auth::tokens::hash_api_token;

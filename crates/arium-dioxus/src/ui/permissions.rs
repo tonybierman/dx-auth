@@ -10,7 +10,7 @@
 //! against the same client-side token snapshot — it is **never enforced on the
 //! server**, so it gates UI without guarding anything behind it. It is
 //! deprecated. For real per-resource authorization (e.g. a user's role on
-//! board 42), use [`ResourceGate`](super::resource_gate::ResourceGate) for the
+//! board 42), use [`ResourceGate`](crate::ui::resource_gate::ResourceGate) for the
 //! UI and `require_resource_dioxus` on the mutation server fn — the actual
 //! security boundary. See the engine's `arium::authz` module.
 //!
@@ -212,7 +212,7 @@ fn scoped(scope: Option<&str>, token: &str) -> String {
 /// ```
 ///
 /// For *per-resource* gating (a user's role on one board/doc), prefer
-/// [`ResourceGate`](super::resource_gate::ResourceGate) over the deprecated
+/// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) over the deprecated
 /// [`Policy::scoped`]: the latter only matches a `"scope:token"` string in the
 /// client snapshot and is never enforced server-side.
 #[derive(Clone, Default, PartialEq)]
@@ -259,7 +259,7 @@ impl Policy {
     ///
     /// **Deprecated.** Matched only against the client-side token snapshot and
     /// never enforced on the server, so it gates UI without guarding anything.
-    /// Use [`ResourceGate`](super::resource_gate::ResourceGate) +
+    /// Use [`ResourceGate`](crate::ui::resource_gate::ResourceGate) +
     /// `require_resource_dioxus` for real per-resource authorization.
     #[deprecated(
         note = "client-only string prefix, never enforced server-side; use ResourceGate + require_resource (see arium::authz)"

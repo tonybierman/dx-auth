@@ -8,7 +8,8 @@
 //! registry, the request extractors) so a fullstack app can reach everything
 //! through this one crate.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # #[allow(unused_imports)]
 //! use arium_dioxus::{
 //!     AuthConfig, Mailer, install, migrator,
 //!     oauth::{github::GithubProvider, OAuthRegistry},

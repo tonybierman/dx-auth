@@ -9,7 +9,8 @@
 //!
 //! Typical server-side usage:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # async fn doc() -> anyhow::Result<()> {
 //! use arium::{
 //!     AuthConfig, Mailer, install, migrator,
 //!     oauth::{github::GithubProvider, OAuthRegistry},
@@ -30,7 +31,10 @@
 //!     .build()?;
 //!
 //! // `router` is any `axum::Router` (e.g. your framework's server router).
+//! # let router = axum::Router::new();
 //! let router = install(router, cfg).await?;
+//! # let _ = router;
+//! # Ok(()) }
 //! ```
 //!
 //! `oauth-github` is on by default. The opt-in `oauth-oidc`, `oauth-google`,
@@ -40,14 +44,13 @@
 //!
 //! ## Per-resource authorization
 //!
-//! Beyond global RBAC (flat permission tokens), the [`authz`] module adds
+//! Beyond global RBAC (flat permission tokens), the `authz` module adds
 //! relationship-based checks — "what role does this user hold on *this*
-//! resource?" Implement [`authz::ResourceAuthority`] over your own membership
-//! storage and guard resource-scoped mutations with
-//! [`require_resource`](authz::require_resource); it does a fresh per-request
-//! lookup and default-denies. arium ships no membership table — the app owns
-//! that storage; arium owns the enforcement boundary and the [`ResourceRole`]
-//! lattice.
+//! resource?" Implement `authz::ResourceAuthority` over your own membership
+//! storage and guard resource-scoped mutations with `require_resource`; it
+//! does a fresh per-request lookup and default-denies. arium ships no
+//! membership table — the app owns that storage; arium owns the enforcement
+//! boundary and the `ResourceRole` lattice.
 
 #![allow(clippy::needless_doctest_main)]
 
@@ -112,8 +115,11 @@ pub use sql_membership::SqlMembershipStore;
 ///
 /// Run this once at startup before installing the router:
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # async fn doc() -> anyhow::Result<()> {
+/// # let pool: arium::pool::Pool = unimplemented!();
 /// arium::migrator().run(&pool).await?;
+/// # Ok(()) }
 /// ```
 ///
 /// This migrator does **not** create the `arium_resource_members` table; that
@@ -150,9 +156,12 @@ pub fn migrator() -> sqlx::migrate::Migrator {
 /// use the bundled store (the `sql-membership` feature) ever create it. Run it
 /// *after* [`migrator`] — the table has an FK to `users`:
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # async fn doc() -> anyhow::Result<()> {
+/// # let pool: arium::pool::Pool = unimplemented!();
 /// arium::migrator().run(&pool).await?;
 /// arium::membership_migrator().run(&pool).await?;
+/// # Ok(()) }
 /// ```
 ///
 /// `ignore_missing = true` for the same cross-migrator coexistence reason as
