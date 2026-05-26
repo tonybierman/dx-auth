@@ -58,17 +58,25 @@ jobs:
         # skip branch instead of aborting the job.
         run: |
           set -eo pipefail
+          # $1 = crate; remaining args pass through to `cargo publish` (e.g. a
+          # backend feature for the verification build).
           publish() {
-            if cargo publish -p "$1" 2>&1 | tee "/tmp/publish-$1.log"; then
-              echo "::notice::published $1"
-            elif grep -qiE "already (uploaded|exists)|is already uploaded" "/tmp/publish-$1.log"; then
-              echo "::notice::$1 already on crates.io at this version — skipping"
+            local crate=$1; shift
+            if cargo publish -p "$crate" "$@" 2>&1 | tee "/tmp/publish-$crate.log"; then
+              echo "::notice::published $crate"
+            elif grep -qiE "already (uploaded|exists)|is already uploaded" "/tmp/publish-$crate.log"; then
+              echo "::notice::$crate already on crates.io at this version — skipping"
             else
-              echo "::error::publish failed for $1"; return 1
+              echo "::error::publish failed for $crate"; return 1
             fi
           }
           publish arium-wire
-          publish arium-pool
-          publish arium-authz
+          # arium-pool and arium-authz declare no default backend (the consumer
+          # picks one at the top of the tree), so `cargo publish`'s verification
+          # build trips their "enable sqlite or postgres" compile_error. Pass a
+          # backend for the verify build only — the published manifests are
+          # unchanged, so consumers still choose their own backend.
+          publish arium-pool --features sqlite
+          publish arium-authz --features sqlite
           publish arium
           publish arium-leptos
