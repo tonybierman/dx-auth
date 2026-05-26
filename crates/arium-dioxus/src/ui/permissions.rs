@@ -4,13 +4,15 @@
 //! call [`use_permissions`] or drop in [`PermissionGate`] /
 //! [`RequirePermission`] without each component refetching the profile.
 //!
-//! ## Scopes
+//! ## Scopes (deprecated)
 //!
-//! Resource-scoped permissions follow the convention `"<scope>:<token>"`.
-//! Pass `scope` on the gate so call sites stay readable — the gate
-//! composes the final token as `"{scope}:{token}"` before lookup. Apps
-//! decide what a scope means (a record id, a tenant id, etc.); the
-//! library only treats it as an opaque prefix.
+//! [`Policy::scoped`] composes a `"<scope>:<token>"` string and matches it
+//! against the same client-side token snapshot — it is **never enforced on the
+//! server**, so it gates UI without guarding anything behind it. It is
+//! deprecated. For real per-resource authorization (e.g. a user's role on
+//! board 42), use [`ResourceGate`](super::resource_gate::ResourceGate) for the
+//! UI and `require_resource_dioxus` on the mutation server fn — the actual
+//! security boundary. See the engine's `arium::authz` module.
 //!
 //! ## Live invalidation
 //!
@@ -202,16 +204,17 @@ fn scoped(scope: Option<&str>, token: &str) -> String {
 /// `false` — unsatisfiable policies do not silently admit everyone.
 ///
 /// ```ignore
-/// // Tiered, scoped policies for a kanban-style app:
-/// fn board_viewer() -> Policy { Policy::token("read") }
-/// fn board_editor() -> Policy { board_viewer().with("write") }
-/// fn board_owner()  -> Policy { board_editor().with("admin") }
+/// // Tiered global policies (app-wide capabilities):
+/// fn readers() -> Policy { Policy::token("read") }
+/// fn editors() -> Policy { readers().with("write") }
 ///
-/// PermissionGate {
-///     policy: board_editor().scoped(format!("board:{id}")),
-///     EditToolbar {}
-/// }
+/// PermissionGate { policy: editors(), EditToolbar {} }
 /// ```
+///
+/// For *per-resource* gating (a user's role on one board/doc), prefer
+/// [`ResourceGate`](super::resource_gate::ResourceGate) over the deprecated
+/// [`Policy::scoped`]: the latter only matches a `"scope:token"` string in the
+/// client snapshot and is never enforced server-side.
 #[derive(Clone, Default, PartialEq)]
 pub struct Policy {
     any_of: Vec<String>,
@@ -252,9 +255,23 @@ impl Policy {
         }
     }
 
-    /// Bind a scope prefix; every lookup becomes `"{scope}:{token}"`. The
-    /// library treats `scope` as an opaque prefix.
-    pub fn scoped(mut self, scope: impl Into<String>) -> Self {
+    /// Bind a scope prefix; every lookup becomes `"{scope}:{token}"`.
+    ///
+    /// **Deprecated.** Matched only against the client-side token snapshot and
+    /// never enforced on the server, so it gates UI without guarding anything.
+    /// Use [`ResourceGate`](super::resource_gate::ResourceGate) +
+    /// `require_resource_dioxus` for real per-resource authorization.
+    #[deprecated(
+        note = "client-only string prefix, never enforced server-side; use ResourceGate + require_resource (see arium::authz)"
+    )]
+    pub fn scoped(self, scope: impl Into<String>) -> Self {
+        self.with_scope(scope)
+    }
+
+    /// Internal scope setter — identical to the (deprecated) public `scoped`,
+    /// but not deprecated so internal callers (the `scope` prop via
+    /// `policy_from_inline`) don't trip the warning.
+    fn with_scope(mut self, scope: impl Into<String>) -> Self {
         self.scope = Some(scope.into());
         self
     }
@@ -310,7 +327,7 @@ fn policy_from_inline(
         Policy::default()
     };
     if let Some(s) = scope {
-        p = p.scoped(s);
+        p = p.with_scope(s);
     }
     p
 }

@@ -19,7 +19,7 @@ use leptos::prelude::*;
 
 use arium_wire::{
     AccountView, AdminRoleDetail, AdminUserDetail, AdminUserSummary, AuditEventView, AuditQuery,
-    LoginOutcome, ProviderInfo, UserProfile,
+    LoginOutcome, ProviderInfo, ResourceRole, UserProfile,
 };
 #[cfg(feature = "tokens")]
 use arium_wire::{ApiTokenView, CreateApiTokenResponse};
@@ -29,7 +29,7 @@ use arium_wire::{MfaSetupView, MfaStatusView};
 #[cfg(feature = "ssr")]
 use arium::auth;
 #[cfg(feature = "ssr")]
-use arium::extract::{AuditCtx, SessionStore};
+use arium::extract::{AuditCtx, ResourceAuthorityExt, SessionStore};
 
 // The axum extensions `arium::install` layers onto the router — extracted in
 // each server-fn body so the body code (`&db.0`, `&mail.0`) mirrors the Dioxus
@@ -132,6 +132,40 @@ pub async fn get_current_user_profile() -> Result<UserProfile, ServerFnError> {
         html_url: user.html_url,
         permissions,
     })
+}
+
+/// The caller's [`ResourceRole`] on `(kind, id)`, or `None` when they hold no
+/// relationship to it (or aren't signed in). Drives the
+/// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) UI — a read for
+/// rendering decisions, **not** the enforcement boundary. Resource-scoped
+/// mutations must call [`require_resource_leptos`].
+///
+/// Requires the app to have registered a `ResourceAuthority` (via
+/// `AuthConfigBuilder::resource_authority` or its own `Router::layer`).
+#[server(endpoint = "resource/role")]
+pub async fn get_resource_role(
+    kind: String,
+    id: i64,
+) -> Result<Option<ResourceRole>, ServerFnError> {
+    let auth: auth::Session = leptos_axum::extract().await?;
+    let db: DbExtension = leptos_axum::extract().await?;
+    let authority: ResourceAuthorityExt = leptos_axum::extract().await?;
+
+    let Some(user) = auth.current_user else {
+        return Ok(None);
+    };
+    if user.anonymous {
+        return Ok(None);
+    }
+    authority
+        .0
+        .role_on(
+            &db.0,
+            user.id as i64,
+            arium::authz::ResourceRef::new(&kind, id),
+        )
+        .await
+        .map_err(sfn)
 }
 
 /// Which third-party providers the server has credentials configured for.
@@ -756,6 +790,76 @@ async fn require_admin_perm(
         .await
         .then_some(user.id as i64)
         .ok_or_else(|| ServerFnError::new("You don't have permission for this action."))
+}
+
+/// Resource-scoped enforcement for mutation server fns: verify the signed-in
+/// caller holds at least `min_role` on `(kind, id)`, recording a denial in the
+/// audit log. Returns the acting user id on success. This is the security
+/// boundary — call it at the top of every resource-scoped mutation; the
+/// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) UI is cosmetic.
+///
+/// ```rust,ignore
+/// #[server(endpoint = "board/rename")]
+/// pub async fn rename_board(board_id: i64, name: String) -> Result<(), ServerFnError> {
+///     let auth: auth::Session = leptos_axum::extract().await?;
+///     let db: DbExtension = leptos_axum::extract().await?;
+///     let authority: ResourceAuthorityExt = leptos_axum::extract().await?;
+///     let audit: AuditCtx = leptos_axum::extract().await?;
+///     let uid = require_resource_leptos(
+///         &auth, &db.0, &authority, &audit, "board", board_id, ResourceRole::Editor,
+///     ).await?;
+///     // ... uid is authorized as at least an Editor of this board ...
+/// }
+/// ```
+#[cfg(feature = "ssr")]
+#[allow(clippy::too_many_arguments)]
+pub async fn require_resource_leptos(
+    auth_session: &auth::Session,
+    db: &arium::pool::Pool,
+    authority: &ResourceAuthorityExt,
+    audit: &AuditCtx,
+    kind: &str,
+    id: i64,
+    min_role: ResourceRole,
+) -> Result<i64, ServerFnError> {
+    let user = auth_session
+        .current_user
+        .as_ref()
+        .ok_or_else(|| ServerFnError::new("Not signed in."))?;
+    if user.anonymous {
+        return Err(ServerFnError::new("Not signed in."));
+    }
+    let user_id = user.id as i64;
+    match arium::authz::require_resource(
+        authority.0.as_ref(),
+        db,
+        user_id,
+        arium::authz::ResourceRef::new(kind, id),
+        min_role,
+    )
+    .await
+    {
+        Ok(id) => Ok(id),
+        Err(arium::authz::ResourceAuthzError::Forbidden) => {
+            let details = format!(
+                "{{\"kind\":{},\"id\":{id},\"min_role\":\"{min_role:?}\"}}",
+                json_escape(kind)
+            );
+            audit
+                .record(
+                    db,
+                    auth::audit::RESOURCE_ACCESS_DENIED,
+                    Some(user_id),
+                    None,
+                    Some(&details),
+                )
+                .await;
+            Err(ServerFnError::new("You don't have access to this resource."))
+        }
+        Err(arium::authz::ResourceAuthzError::Lookup(e)) => {
+            Err(ServerFnError::new(format!("authorization check failed: {e}")))
+        }
+    }
 }
 
 #[cfg(feature = "ssr")]

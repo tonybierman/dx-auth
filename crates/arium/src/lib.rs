@@ -37,6 +37,17 @@
 //! and `oauth-microsoft` features add a generic OpenID Connect provider plus
 //! Google/Microsoft presets — each `from_env()`-constructed and registered the
 //! same way as `GithubProvider` above.
+//!
+//! ## Per-resource authorization
+//!
+//! Beyond global RBAC (flat permission tokens), the [`authz`] module adds
+//! relationship-based checks — "what role does this user hold on *this*
+//! resource?" Implement [`authz::ResourceAuthority`] over your own membership
+//! storage and guard resource-scoped mutations with
+//! [`require_resource`](authz::require_resource); it does a fresh per-request
+//! lookup and default-denies. arium ships no membership table — the app owns
+//! that storage; arium owns the enforcement boundary and the [`ResourceRole`]
+//! lattice.
 
 #![allow(clippy::needless_doctest_main)]
 
@@ -45,9 +56,12 @@
 pub use arium_wire as wire;
 
 pub mod auth;
+pub mod authz;
 pub mod config;
 pub mod extract;
+pub mod membership;
 pub mod pool;
+mod sql_membership;
 
 mod install;
 
@@ -62,7 +76,15 @@ pub use config::{AuditConfig, AuthConfig, AuthConfigBuilder, RECOMMENDED_HSTS};
 #[cfg(feature = "ratelimit")]
 pub use config::RateLimitConfig;
 
-pub use extract::{AuditCtx, SessionStore};
+pub use authz::{
+    require_resource, ResourceAuthority, ResourceAuthzError, ResourceRef, SharedResourceAuthority,
+};
+pub use membership::{
+    grant_membership, revoke_membership, transfer_ownership, Membership, MembershipError,
+    MembershipStore, TxExec,
+};
+pub use sql_membership::SqlMembershipStore;
+pub use extract::{AuditCtx, AuthzCtx, ResourceAuthorityExt, SessionStore};
 pub use install::install;
 
 /// Returns the embedded migrator that creates the `users`, `oauth_accounts`,
@@ -101,4 +123,6 @@ pub use mail::Mailer;
 // Wire-types re-exported at the crate root for ergonomics.
 #[cfg(feature = "tokens")]
 pub use wire::{ApiTokenView, CreateApiTokenResponse};
-pub use wire::{LoginOutcome, MfaSetupView, MfaStatusView, ProviderInfo, UserProfile};
+pub use wire::{
+    LoginOutcome, MfaSetupView, MfaStatusView, ProviderInfo, ResourceRole, UserProfile,
+};

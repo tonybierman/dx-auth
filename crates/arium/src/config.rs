@@ -85,6 +85,11 @@ pub struct AuthConfig {
     /// `false` by default so plain-HTTP `localhost` dev still works; turn it on
     /// in production (see [`AuthConfigBuilder::cookie_secure`]).
     pub(crate) cookie_secure: bool,
+    /// App-registered resource-authority impl. When present, [`crate::install`]
+    /// layers it as the `Arc<dyn ResourceAuthority>` extension that
+    /// [`require_resource`](crate::authz::require_resource) and the adapters'
+    /// resource gates read. `None` leaves per-resource authz unwired.
+    pub(crate) resource_authority: Option<crate::authz::SharedResourceAuthority>,
 }
 
 /// A conservative `Strict-Transport-Security` value (2 years, subdomains,
@@ -112,6 +117,7 @@ impl AuthConfig {
             hsts: None,
             csp: None,
             cookie_secure: false,
+            resource_authority: None,
         }
     }
 
@@ -132,6 +138,7 @@ impl AuthConfig {
             hsts: None,
             csp: None,
             cookie_secure: false,
+            resource_authority: None,
         }
     }
 }
@@ -153,6 +160,7 @@ pub struct AuthConfigBuilder {
     hsts: Option<String>,
     csp: Option<String>,
     cookie_secure: bool,
+    resource_authority: Option<crate::authz::SharedResourceAuthority>,
 }
 
 impl AuthConfigBuilder {
@@ -250,6 +258,26 @@ impl AuthConfigBuilder {
         self
     }
 
+    /// Register the app's [`ResourceAuthority`](crate::authz::ResourceAuthority)
+    /// implementation. [`crate::install`] layers it as the request extension
+    /// that [`require_resource`](crate::authz::require_resource) and the
+    /// adapters' resource gates read. Equivalent to layering
+    /// `axum::Extension(authority)` onto the router yourself.
+    ///
+    /// ```rust,ignore
+    /// let authority: arium::authz::SharedResourceAuthority = std::sync::Arc::new(BoardAuthority);
+    /// let cfg = AuthConfig::builder(pool, mailer)
+    ///     .resource_authority(authority)
+    ///     .build()?;
+    /// ```
+    pub fn resource_authority(
+        mut self,
+        authority: crate::authz::SharedResourceAuthority,
+    ) -> Self {
+        self.resource_authority = Some(authority);
+        self
+    }
+
     /// Enable the `Strict-Transport-Security` response header with the given
     /// value (e.g. [`RECOMMENDED_HSTS`]). Off by default.
     ///
@@ -310,6 +338,7 @@ impl AuthConfigBuilder {
             hsts: self.hsts,
             csp: self.csp,
             cookie_secure: self.cookie_secure,
+            resource_authority: self.resource_authority,
         })
     }
 }

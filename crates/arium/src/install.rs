@@ -108,6 +108,12 @@ pub async fn install(router: Router, cfg: AuthConfig) -> anyhow::Result<Router> 
     {
         router = router.layer(axum::Extension(cfg.mailer.clone()));
     }
+    // App-registered resource-authority impl (per-resource authz). Layered as
+    // `Arc<dyn ResourceAuthority>` so the `ResourceAuthorityExt` extractor finds
+    // it; absent unless the app called `.resource_authority(..)` on the builder.
+    if let Some(authority) = cfg.resource_authority.clone() {
+        router = router.layer(axum::Extension(authority));
+    }
 
     // 3b) Background audit-log prune. No-ops when retention_days == 0.
     if cfg.audit.retention_days > 0 {

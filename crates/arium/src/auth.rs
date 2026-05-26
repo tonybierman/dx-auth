@@ -1333,6 +1333,13 @@ pub mod audit {
     /// An admin deleted a role.
     pub const ADMIN_ROLE_DELETED: &str = "admin.role.deleted";
 
+    /// A per-resource authorization check denied access (no relationship, or a
+    /// role below the required minimum). See [`crate::authz::require_resource`].
+    pub const RESOURCE_ACCESS_DENIED: &str = "resource.access.denied";
+    /// A per-resource authorization check granted access. Opt-in: emitting this
+    /// on every read can flood the log, so adapters record only DENIED by default.
+    pub const RESOURCE_ACCESS_GRANTED: &str = "resource.access.granted";
+
     /// Input to [`record`]. All fields are optional — pass `None` for
     /// whatever you don't have. `details` should be a small JSON document
     /// (or `None`).

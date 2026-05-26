@@ -57,8 +57,16 @@ web = ["dioxus/web", "dep:dioxus-web"]
 # Backend selection — enable exactly one, matching arium's compile-time choice
 # (`arium` has a `compile_error!` if both are on). `default` ships `sqlite`; for
 # Postgres, build with `--no-default-features --features web,server,postgres`.
-sqlite = ["arium-dioxus/sqlite", "sqlx/sqlite"]
-postgres = ["arium-dioxus/postgres", "sqlx/postgres"]
+#
+# `dx serve` builds the client (wasm) and server from this one crate, keeping
+# non-platform features — including the backend — on BOTH sides. So the backend
+# must forward to `sqlx` *weakly* (`sqlx?/…`): the sqlite driver is selected only
+# when `sqlx` is already present (i.e. via `server`). A non-weak `sqlx/sqlite`
+# would force the optional `sqlx` on for the wasm client too, dragging tokio's
+# `net` feature → `mio`, which doesn't build for wasm. Mirrors arium-dioxus's
+# own `arium?/sqlite` convention.
+sqlite = ["arium-dioxus/sqlite", "sqlx?/sqlite"]
+postgres = ["arium-dioxus/postgres", "sqlx?/postgres"]
 
 # Optional: Google sign-in via the OIDC engine. Off by default (keeps the
 # openidconnect crate out of the default build). Enable with

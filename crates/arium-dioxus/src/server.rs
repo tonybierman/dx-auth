@@ -13,7 +13,7 @@ use dioxus::prelude::*;
 
 #[cfg(feature = "tokens")]
 use arium_wire::{ApiTokenView, CreateApiTokenResponse};
-use arium_wire::{LoginOutcome, ProviderInfo, UserProfile};
+use arium_wire::{LoginOutcome, ProviderInfo, ResourceRole, UserProfile};
 #[cfg(feature = "mfa")]
 use arium_wire::{MfaSetupView, MfaStatusView};
 
@@ -34,7 +34,7 @@ pub(crate) type ProvidersExtension = axum::Extension<std::sync::Arc<Vec<arium_wi
 // live in the engine crate. Re-imported here so the server-fn extractor syntax
 // below (`audit: AuditCtx`, `session: SessionStore`) keeps resolving.
 #[cfg(feature = "server")]
-use arium::extract::{AuditCtx, SessionStore};
+use arium::extract::{AuditCtx, ResourceAuthorityExt, SessionStore};
 
 /// Session key under which we stash `(user_id, expires_at_unix, remember_me)`
 /// between a successful password verification and the user submitting their
@@ -113,6 +113,35 @@ pub async fn get_current_user_profile() -> Result<UserProfile> {
         html_url: user.html_url,
         permissions,
     })
+}
+
+/// The caller's [`ResourceRole`] on `(kind, id)`, or `None` when they hold no
+/// relationship to it (or aren't signed in). Drives the
+/// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) UI — this is a read
+/// for rendering decisions, **not** the enforcement boundary. Resource-scoped
+/// mutations must call [`require_resource_dioxus`].
+///
+/// Requires the app to have registered a `ResourceAuthority` (via
+/// `AuthConfigBuilder::resource_authority` or its own `Router::layer`); without
+/// one the extractor returns a 500 so the misconfiguration surfaces.
+#[get("/api/resource/role?kind&id", auth: auth::Session, db: DbExtension, authority: ResourceAuthorityExt)]
+pub async fn get_resource_role(kind: String, id: i64) -> Result<Option<ResourceRole>> {
+    let Some(user) = auth.current_user else {
+        return Ok(None);
+    };
+    if user.anonymous {
+        return Ok(None);
+    }
+    let role = authority
+        .0
+        .role_on(
+            &db.0,
+            user.id as i64,
+            arium::authz::ResourceRef::new(&kind, id),
+        )
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(role)
 }
 
 /// Which third-party providers the server has credentials configured for.
@@ -658,9 +687,10 @@ pub async fn revoke_api_token(token_id: i64) -> Result<()> {
 /// is passed through unchanged. Names with control characters are rare
 /// enough that a heavier dep isn't worth pulling in.
 ///
-/// Only referenced from server-fn bodies, so gate on `server` too — otherwise
-/// the wasm client build (tokens on, server off) flags it as dead code.
-#[cfg(all(feature = "tokens", feature = "server"))]
+/// Only referenced from server-fn bodies, so gate on `server` — otherwise the
+/// wasm client build flags it as dead code. (Used by the API-token audit
+/// details and by the resource-authz enforcement wrapper.)
+#[cfg(feature = "server")]
 fn json_string(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len().saturating_add(2));
     out.push('"');
@@ -707,6 +737,75 @@ async fn require_admin_perm(
         .await
         .then_some(user.id as i64)
         .ok_or_else(|| ServerFnError::new("You don't have permission for this action.").into())
+}
+
+/// Resource-scoped enforcement for mutation server fns: verify the signed-in
+/// caller holds at least `min_role` on `(kind, id)`, recording a denial in the
+/// audit log. Returns the acting user id on success. This is the security
+/// boundary — call it at the top of every resource-scoped mutation; the
+/// [`ResourceGate`](crate::ui::resource_gate::ResourceGate) UI is cosmetic.
+///
+/// Pass the extractors a server fn already has in scope:
+///
+/// ```rust,ignore
+/// #[post("/api/board/rename", auth: auth::Session, db: DbExtension,
+///        authority: ResourceAuthorityExt, audit: AuditCtx)]
+/// pub async fn rename_board(board_id: i64, name: String) -> Result<()> {
+///     let uid = require_resource_dioxus(
+///         &auth, &db.0, &authority, &audit, "board", board_id, ResourceRole::Editor,
+///     ).await?;
+///     // ... uid is authorized as at least an Editor of this board ...
+/// }
+/// ```
+#[cfg(feature = "server")]
+#[allow(clippy::too_many_arguments)]
+pub async fn require_resource_dioxus(
+    auth_session: &auth::Session,
+    db: &arium::pool::Pool,
+    authority: &ResourceAuthorityExt,
+    audit: &AuditCtx,
+    kind: &str,
+    id: i64,
+    min_role: ResourceRole,
+) -> Result<i64> {
+    let user = auth_session
+        .current_user
+        .as_ref()
+        .ok_or_else(|| ServerFnError::new("Not signed in."))?;
+    if user.anonymous {
+        return Err(ServerFnError::new("Not signed in.").into());
+    }
+    let user_id = user.id as i64;
+    match arium::authz::require_resource(
+        authority.0.as_ref(),
+        db,
+        user_id,
+        arium::authz::ResourceRef::new(kind, id),
+        min_role,
+    )
+    .await
+    {
+        Ok(id) => Ok(id),
+        Err(arium::authz::ResourceAuthzError::Forbidden) => {
+            let details = format!(
+                "{{\"kind\":{},\"id\":{id},\"min_role\":\"{min_role:?}\"}}",
+                json_string(kind)
+            );
+            audit
+                .record(
+                    db,
+                    auth::audit::RESOURCE_ACCESS_DENIED,
+                    Some(user_id),
+                    None,
+                    Some(&details),
+                )
+                .await;
+            Err(ServerFnError::new("You don't have access to this resource.").into())
+        }
+        Err(arium::authz::ResourceAuthzError::Lookup(e)) => {
+            Err(ServerFnError::new(format!("authorization check failed: {e}")).into())
+        }
+    }
 }
 
 #[cfg(feature = "server")]

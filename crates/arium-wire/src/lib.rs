@@ -291,3 +291,81 @@ pub struct AccountView {
     /// Provider names (`"github"`, ...) currently linked to this account.
     pub linked_oauth_providers: Vec<String>,
 }
+
+// ---- Per-resource authorization wire types ----
+
+/// The relationship role a user holds on a single resource (a board, a
+/// document, ...). The variants form an *ordered lattice*: a higher role
+/// subsumes every capability of the lower ones, so the access check is a plain
+/// `held_role >= required_role`. Declaration order defines that ordering via
+/// the derived `Ord` — **do not reorder the variants**.
+///
+/// arium ships these four because they cover the overwhelming majority of
+/// collaborative-resource apps; an app with a finer ladder maps its roles onto
+/// these (e.g. treat a "commenter" as [`ResourceRole::Viewer`]). There is
+/// deliberately no `Default` — the absence of a relationship is `Option::None`,
+/// not a role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ResourceRole {
+    /// Read-only access.
+    Viewer,
+    /// Can read and modify the resource's contents.
+    Editor,
+    /// Editor, plus management of the resource itself (membership, settings).
+    Admin,
+    /// Full control, including destructive actions and ownership transfer.
+    Owner,
+}
+
+impl ResourceRole {
+    /// True when this role is at least `min` in the lattice — the canonical
+    /// access check. `Editor.at_least(Viewer)` is `true`; `Viewer.at_least(Editor)`
+    /// is `false`. Equivalent to `self >= min`, named for readable call sites.
+    pub fn at_least(self, min: ResourceRole) -> bool {
+        self >= min
+    }
+
+    /// The canonical lowercase string for this role (`"viewer"`, `"editor"`,
+    /// `"admin"`, `"owner"`) — the form membership stores persist.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResourceRole::Viewer => "viewer",
+            ResourceRole::Editor => "editor",
+            ResourceRole::Admin => "admin",
+            ResourceRole::Owner => "owner",
+        }
+    }
+
+    /// Parse a stored role string. Intended for values written by [`as_str`](Self::as_str);
+    /// an unrecognized string maps to the lowest tier ([`ResourceRole::Viewer`])
+    /// so corrupt data never silently escalates privilege.
+    pub fn from_str_lossy(s: &str) -> Self {
+        match s {
+            "owner" => ResourceRole::Owner,
+            "admin" => ResourceRole::Admin,
+            "editor" => ResourceRole::Editor,
+            _ => ResourceRole::Viewer,
+        }
+    }
+}
+
+#[cfg(test)]
+mod resource_role_tests {
+    use super::ResourceRole::*;
+
+    #[test]
+    fn lattice_is_ordered() {
+        assert!(Owner > Admin && Admin > Editor && Editor > Viewer);
+        assert!(Editor.at_least(Viewer));
+        assert!(Editor.at_least(Editor));
+        assert!(!Viewer.at_least(Editor));
+    }
+
+    #[test]
+    fn serde_round_trip() {
+        let j = serde_json::to_string(&Editor).unwrap();
+        assert_eq!(j, "\"Editor\"");
+        let back: super::ResourceRole = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, Editor);
+    }
+}

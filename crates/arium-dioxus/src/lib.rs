@@ -51,7 +51,9 @@ pub mod server;
 pub use arium_wire as wire;
 #[cfg(feature = "tokens")]
 pub use arium_wire::{ApiTokenView, CreateApiTokenResponse};
-pub use arium_wire::{LoginOutcome, MfaSetupView, MfaStatusView, ProviderInfo, UserProfile};
+pub use arium_wire::{
+    LoginOutcome, MfaSetupView, MfaStatusView, ProviderInfo, ResourceRole, UserProfile,
+};
 
 // Server-side engine API, re-exported for fullstack consumers. Present only on
 // the native/server build (the `arium` dep is target-gated off wasm).
@@ -63,8 +65,11 @@ pub use arium::RateLimitConfig;
 pub use arium::oauth;
 #[cfg(feature = "server")]
 pub use arium::{
-    AuditConfig, AuditCtx, AuthConfig, AuthConfigBuilder, SessionStore, auth, install, migrator,
-    pool,
+    AuditConfig, AuditCtx, AuthConfig, AuthConfigBuilder, AuthzCtx, Membership, MembershipError,
+    MembershipStore, ResourceAuthority, ResourceAuthorityExt, ResourceAuthzError, ResourceRef,
+    SessionStore, SharedResourceAuthority, SqlMembershipStore, TxExec, auth, authz,
+    grant_membership, install, membership, migrator, pool, require_resource, revoke_membership,
+    transfer_ownership,
 };
 
 /// Extract just the human-readable message from a server-fn error captured
