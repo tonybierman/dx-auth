@@ -207,7 +207,11 @@ pub async fn register_with_password(email: String, password: String) -> Result<L
 
 /// Truthy-parse `DX_AUTH_SKIP_EMAIL_VERIFICATION`. Accepts `1`, `true`,
 /// `yes`, `on` (case-insensitive); anything else (including unset) is false.
-#[cfg(feature = "server")]
+///
+/// Its sole caller is the `mail`-gated `register_with_password`, so it carries
+/// the same `server + mail` gate — otherwise a `server`-without-`mail` build
+/// (e.g. examples/dioxus-authz-example) flags it as dead code.
+#[cfg(all(feature = "server", feature = "mail"))]
 fn skip_email_verification() -> bool {
     match std::env::var("DX_AUTH_SKIP_EMAIL_VERIFICATION") {
         Ok(v) => matches!(
@@ -219,9 +223,23 @@ fn skip_email_verification() -> bool {
 }
 
 #[cfg(not(feature = "mail"))]
-#[post("/api/user/register-password", db: DbExtension, audit: AuditCtx)]
+#[post(
+    "/api/user/register-password",
+    auth: auth::Session,
+    db: DbExtension,
+    session: SessionStore,
+    audit: AuditCtx,
+)]
 pub async fn register_with_password(email: String, password: String) -> Result<LoginOutcome> {
     let user_id = auth::create_password_user(&db.0, &email, &password).await?;
+    // No mailer is wired in, so there is no verification round-trip to run:
+    // mark the account verified at creation and log the user straight in — the
+    // same end state the `mail` path reaches under DX_AUTH_SKIP_EMAIL_VERIFICATION.
+    // Without this, the `LoggedIn` we return below would be a lie: the session
+    // would stay anonymous (signup appears to do nothing) and a later sign-in
+    // would fail as `Unverified`. The audit entry already claims `auto_verified`,
+    // so this also makes the log truthful.
+    auth::mark_email_verified(&db.0, user_id).await?;
     audit
         .record(
             &db.0,
@@ -231,8 +249,7 @@ pub async fn register_with_password(email: String, password: String) -> Result<L
             Some("{\"method\":\"password\",\"auto_verified\":true}"),
         )
         .await;
-    // No mailer wired in → skip the verification round-trip. (Caller's choice;
-    // they opted out of the `mail` feature.)
+    complete_login(&auth, &session, user_id, false);
     Ok(LoginOutcome::LoggedIn)
 }
 

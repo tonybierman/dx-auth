@@ -235,7 +235,11 @@ pub async fn register_with_password(
 
 /// Truthy-parse `DX_AUTH_SKIP_EMAIL_VERIFICATION`. Accepts `1`, `true`,
 /// `yes`, `on` (case-insensitive); anything else (including unset) is false.
-#[cfg(feature = "ssr")]
+///
+/// Its sole caller is the `mail`-gated `register_with_password`, so it carries
+/// the same `ssr + mail` gate — otherwise an `ssr`-without-`mail` build (e.g.
+/// examples/leptos-authz-example) flags it as dead code.
+#[cfg(all(feature = "ssr", feature = "mail"))]
 fn skip_email_verification() -> bool {
     match std::env::var("DX_AUTH_SKIP_EMAIL_VERIFICATION") {
         Ok(v) => matches!(
@@ -252,10 +256,22 @@ pub async fn register_with_password(
     email: String,
     password: String,
 ) -> Result<LoginOutcome, ServerFnError> {
+    let auth: auth::Session = leptos_axum::extract().await?;
     let db: DbExtension = leptos_axum::extract().await?;
+    let session: SessionStore = leptos_axum::extract().await?;
     let audit: AuditCtx = leptos_axum::extract().await?;
 
     let user_id = auth::create_password_user(&db.0, &email, &password)
+        .await
+        .map_err(sfn)?;
+    // No mailer is wired in, so there is no verification round-trip to run:
+    // mark the account verified at creation and log the user straight in — the
+    // same end state the `mail` path reaches under DX_AUTH_SKIP_EMAIL_VERIFICATION.
+    // Without this, the `LoggedIn` we return below would be a lie: the session
+    // would stay anonymous (signup appears to do nothing) and a later sign-in
+    // would fail as `Unverified`. The audit entry already claims `auto_verified`,
+    // so this also makes the log truthful.
+    auth::mark_email_verified(&db.0, user_id)
         .await
         .map_err(sfn)?;
     audit
@@ -267,7 +283,7 @@ pub async fn register_with_password(
             Some("{\"method\":\"password\",\"auto_verified\":true}"),
         )
         .await;
-    // No mailer wired in → skip the verification round-trip.
+    complete_login(&auth, &session, user_id, false);
     Ok(LoginOutcome::LoggedIn)
 }
 

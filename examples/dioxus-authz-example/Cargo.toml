@@ -1,0 +1,59 @@
+[package]
+name = "dioxus-authz-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+# The smallest faithful demo of arium's *per-resource membership*
+# authorization in Dioxus: a `ResourceAuthority` decides the caller's role on
+# each document, a cosmetic `ResourceGate` shows/hides the edit field, and
+# `require_resource_dioxus` is the real boundary on the mutation server fn.
+#
+# Deliberately omits the rest of arium's surface (OAuth / MFA / mail / API
+# tokens / rate limiting) so the membership story stands alone. For the
+# everything-on tour see ../dioxus-fullstack-example.
+
+[dependencies]
+dioxus = { version = "0.7.9", features = ["fullstack"] }
+dioxus-web = { version = "0.7.9", features = ["hydrate"], optional = true }
+
+# The adapter, pulled in with only the UI components (for `ResourceGate` +
+# `LoginPanel`). No capability features — this example demonstrates one axis.
+arium-dioxus = { path = "../../crates/arium-dioxus", default-features = false, features = ["ui"] }
+
+# Server-only deps the binary touches directly: the sqlx pool, the axum
+# `Extension` extractor type for the membership server fn, and async-trait to
+# implement `ResourceAuthority`.
+axum = { version = "0.8.4", default-features = false, optional = true, features = ["macros"] }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "macros",
+    "migrate",
+    "runtime-tokio",
+], optional = true }
+async-trait = { version = "0.1.88", optional = true }
+anyhow = { version = "1.0.98", optional = true }
+
+[features]
+default = ["web", "server", "sqlite"]
+server = [
+    "dioxus/server",
+    "dep:axum",
+    "dep:sqlx",
+    "dep:async-trait",
+    "dep:anyhow",
+    "arium-dioxus/server",
+]
+web = ["dioxus/web", "dep:dioxus-web"]
+
+# Backend selection — enable exactly one, matching arium's compile-time choice.
+# `sqlite` ships by default; the `sqlx?/sqlite` weak-dep forwards the driver
+# only when `sqlx` is already present (i.e. via `server`), so the wasm client
+# never drags in the tokio `net` → `mio` stack. Mirrors the fullstack example.
+sqlite = ["arium-dioxus/sqlite", "sqlx?/sqlite"]
+postgres = ["arium-dioxus/postgres", "sqlx?/postgres"]
+
+# dioxus-web is dragged in only for its `["hydrate"]` feature — no call site for
+# cargo-machete to find, but dropping it silently disables hydration.
+[package.metadata.cargo-machete]
+ignored = ["dioxus-web"]
