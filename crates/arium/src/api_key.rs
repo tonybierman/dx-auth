@@ -37,6 +37,57 @@ pub struct ApiKeyUser {
     pub key_id: i64,
 }
 
+/// Validate a presented bearer token against the `api_keys` table.
+///
+/// Hashes `token` with [`hash_api_token`](crate::auth::tokens::hash_api_token)
+/// and looks up a non-revoked row; on a hit, returns the resolved
+/// [`ApiKeyUser`] and bumps `last_used_at` in the background. Returns `None`
+/// for a missing / blank / unknown / revoked token. Lookup errors are logged
+/// and treated as `None` (fail-closed for auth purposes).
+///
+/// This is the shared validation path used both by the [`bearer_auth`]
+/// middleware [`install`](crate::install) applies and by out-of-tree consumers
+/// that gate their own endpoints on arium tokens (e.g. an MCP server protected
+/// via `arium-mcp`). `token` is the raw bearer credential *without* the
+/// `Bearer ` scheme prefix.
+pub async fn authenticate_token(pool: &Pool, token: &str) -> Option<ApiKeyUser> {
+    let token = token.trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let hash = hash_api_token(token);
+    let row: Result<Option<(i64, i64)>, _> = sqlx::query_as(
+        "SELECT id, user_id FROM api_keys WHERE token_hash = $1 AND revoked_at IS NULL",
+    )
+    .bind(&hash)
+    .fetch_optional(pool)
+    .await;
+
+    match row {
+        Ok(Some((key_id, user_id))) => {
+            let p = pool.clone();
+            tokio::spawn(async move {
+                if let Err(e) = sqlx::query(
+                    "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1",
+                )
+                .bind(key_id)
+                .execute(&p)
+                .await
+                {
+                    eprintln!("[api_key] WARN: last_used_at update failed (key {key_id}): {e}");
+                }
+            });
+            Some(ApiKeyUser { user_id, key_id })
+        }
+        Ok(None) => None,
+        Err(e) => {
+            eprintln!("[api_key] WARN: api_keys lookup failed: {e}");
+            None
+        }
+    }
+}
+
 /// Axum middleware: if the request carries a `Authorization: Bearer …` header
 /// matching a non-revoked `api_keys` row, inject [`ApiKeyUser`] into the
 /// request extensions and bump `last_used_at` in the background.
@@ -44,42 +95,17 @@ pub struct ApiKeyUser {
 /// Missing / malformed / revoked tokens are silently ignored — the session
 /// layer may still authenticate via cookie, and server fns that require auth
 /// produce the 401 themselves. Applied by [`install`](crate::install) with the
-/// configured pool captured.
+/// configured pool captured. The actual validation is delegated to
+/// [`authenticate_token`].
 pub(crate) async fn bearer_auth(pool: Pool, mut req: Request<Body>, next: Next) -> Response {
     if let Some(token) = req
         .headers()
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
+        && let Some(user) = authenticate_token(&pool, token).await
     {
-        let hash = hash_api_token(token);
-        let row: Result<Option<(i64, i64)>, _> = sqlx::query_as(
-            "SELECT id, user_id FROM api_keys WHERE token_hash = $1 AND revoked_at IS NULL",
-        )
-        .bind(&hash)
-        .fetch_optional(&pool)
-        .await;
-        match row {
-            Ok(Some((key_id, user_id))) => {
-                req.extensions_mut().insert(ApiKeyUser { user_id, key_id });
-                let p = pool.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = sqlx::query(
-                        "UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1",
-                    )
-                    .bind(key_id)
-                    .execute(&p)
-                    .await
-                    {
-                        eprintln!("[api_key] WARN: last_used_at update failed (key {key_id}): {e}");
-                    }
-                });
-            }
-            Ok(None) => {}
-            Err(e) => eprintln!("[api_key] WARN: api_keys lookup failed: {e}"),
-        }
+        req.extensions_mut().insert(user);
     }
     next.run(req).await
 }

@@ -287,7 +287,7 @@ jobs:
       - run: cargo install --locked cargo-rdme
       - name: Check READMEs are in sync with doc comments
         run: |
-          for crate in arium arium-authz arium-dioxus arium-leptos arium-pool arium-wire; do
+          for crate in arium arium-authz arium-dioxus arium-leptos arium-mcp arium-pool arium-wire; do
             echo "::group::cargo rdme --check -w $crate"
             cargo rdme --check -w "$crate"
             echo "::endgroup::"

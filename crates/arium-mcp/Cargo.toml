@@ -1,0 +1,30 @@
+[package]
+name = "arium-mcp"
+version.workspace = true
+edition.workspace = true
+description = "Protect a remote MCP (Model Context Protocol) HTTP server as an arium OAuth 2.0 Resource Server: per-request bearer-token validation, RFC 9728 Protected Resource Metadata, and audit logging — independent of any rmcp version."
+keywords = ["mcp", "oauth", "authentication", "axum", "rmcp"]
+categories = ["authentication", "web-programming"]
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# A backend must be selected (it picks the concrete sqlx `Pool` type arium
+# validates tokens against). Mirrors the arium adapters' sqlite/postgres axis.
+default = ["sqlite"]
+sqlite = ["arium/sqlite"]
+postgres = ["arium/postgres"]
+
+[dependencies]
+# `tokens` is mandatory — it gates `arium::authenticate_token`, the whole point
+# of this crate. The backend is forwarded from our own sqlite/postgres feature.
+arium = { workspace = true, features = ["tokens"] }
+axum = "0.8.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -1,0 +1,39 @@
+[package]
+name = "rmcp_example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "rmcp_example"
+path = "src/main.rs"
+
+[dependencies]
+# MCP runtime. `transport-streamable-http-server` is the network transport the
+# OAuth/bearer-at-the-boundary model applies to (stdio servers don't need it).
+rmcp = { version = "1.7", features = [
+  "server",
+  "macros",
+  "transport-streamable-http-server",
+] }
+schemars = "1"
+
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+axum = "0.8.4"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sqlx = { version = "0.8.6", default-features = false, features = [
+  "sqlite",
+  "runtime-tokio",
+] }
+
+# The arium auth engine (token minting + migrations) and the reusable
+# resource-server protection layer. No `mail` feature — this demo never sends
+# email, so it doesn't pull the mail stack or the mail-gated config builder.
+arium = { path = "../../crates/arium", default-features = false, features = [
+  "sqlite",
+  "tokens",
+] }
+arium-mcp = { path = "../../crates/arium-mcp" }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/arium-wire", "crates/arium-pool", "crates/arium-authz", "crates/arium", "crates/arium-dioxus", "crates/arium-leptos", "examples/dioxus-authz-example", "examples/dioxus-rbac-example", "examples/dioxus-fullstack-example", "examples/leptos-authz-example", "examples/leptos-rbac-example", "examples/leptos-fullstack-example"]
+members = ["crates/arium-wire", "crates/arium-pool", "crates/arium-authz", "crates/arium", "crates/arium-dioxus", "crates/arium-leptos", "crates/arium-mcp", "examples/dioxus-authz-example", "examples/dioxus-rbac-example", "examples/dioxus-fullstack-example", "examples/leptos-authz-example", "examples/leptos-rbac-example", "examples/leptos-fullstack-example", "examples/rmcp_example"]
 resolver = "3"
 
 # Shared package metadata. Published crates inherit these via
@@ -21,3 +21,4 @@ arium-wire = { version = "0.1.4", path = "crates/arium-wire" }
 arium-pool = { version = "0.1.4", path = "crates/arium-pool" }
 arium-authz = { version = "0.1.4", path = "crates/arium-authz", default-features = false }
 arium = { version = "0.1.4", path = "crates/arium", default-features = false }
+arium-mcp = { version = "0.1.4", path = "crates/arium-mcp", default-features = false }

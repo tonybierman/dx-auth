@@ -103,7 +103,7 @@ pub use arium_authz::{
 // The global↔resource composition bridge lives here (it reads the auth
 // engine's permission set).
 #[cfg(feature = "tokens")]
-pub use api_key::ApiKeyUser;
+pub use api_key::{ApiKeyUser, authenticate_token};
 pub use authz_bridge::{ResourceGrant, require_resource_audited, require_resource_or_permission};
 pub use extract::{AuditCtx, AuthUser, AuthzCtx, ResourceAuthorityExt, SessionStore};
 pub use install::install;
