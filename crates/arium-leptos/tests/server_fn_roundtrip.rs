@@ -46,6 +46,16 @@ async fn register_login_profile_logout_round_trip() {
     let outcome = common::register(&registrar, &base, EMAIL, PASSWORD).await;
     assert_eq!(outcome, LoginOutcome::LoggedIn, "register should log in");
 
+    // Register must *establish the session on the same client*, not merely
+    // return `LoggedIn`. The no-mail register path once returned `LoggedIn`
+    // without calling `complete_login`, so signup left the caller anonymous —
+    // this asserts the cookie the registrar now carries actually authenticates.
+    let profile: UserProfile = common::post_json(&registrar, &base, "user/profile", None).await;
+    assert!(
+        profile.is_authenticated,
+        "register must log the caller in (session established), got {profile:?}"
+    );
+
     // --- Login on a *fresh* client to exercise the login path + Set-Cookie. ---
     let user = common::client();
     let (outcome, set_cookie) = common::login(&user, &base, EMAIL, PASSWORD).await;

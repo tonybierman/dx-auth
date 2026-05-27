@@ -45,8 +45,17 @@ pub async fn spawn_app() -> String {
         .await
         .expect("run migrations");
 
-    let mailer = arium_leptos::Mailer::from_env().expect("mailer");
-    let builder = arium_leptos::AuthConfig::builder(pool, mailer);
+    // `AuthConfig::builder` takes a mailer only when the `mail` feature is on;
+    // gate the construction so this harness boots under both feature sets (the
+    // round-trip test runs under `mail` in CI and under `--no-default-features`
+    // to exercise the no-mail register path).
+    #[cfg(feature = "mail")]
+    let builder = {
+        let mailer = arium_leptos::Mailer::from_env().expect("mailer");
+        arium_leptos::AuthConfig::builder(pool, mailer)
+    };
+    #[cfg(not(feature = "mail"))]
+    let builder = arium_leptos::AuthConfig::builder(pool);
     // Determinism: turn rate limiting off so a fast multi-endpoint sweep can't
     // drain the tower_governor burst and mask an auth gate behind a 429. The
     // `ratelimit` feature is on by default, so this is gated to match.
@@ -238,11 +247,20 @@ fn enable_skip_email_verification() {
     });
 }
 
-/// Monotonic-ish unique suffix for the temp DB filename.
+/// Process-unique suffix for the temp DB filename. A bare wall-clock reading
+/// isn't enough: two tests spawning in the same nanosecond under parallel
+/// execution would collide on one DB file and run migrations concurrently
+/// against it (observed as a spurious "duplicate column" migration error). The
+/// monotonic counter guarantees uniqueness within the process; the clock keeps
+/// names readable and time-ordered.
 fn unique() -> u128 {
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed) as u128;
+    let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_nanos()
+        .as_nanos();
+    nanos.wrapping_mul(1_000_000).wrapping_add(seq)
 }

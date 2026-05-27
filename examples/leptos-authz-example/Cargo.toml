@@ -1,0 +1,83 @@
+[package]
+name = "leptos-authz-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+# The Leptos parallel of dioxus-authz-example: the smallest faithful demo of
+# arium's *per-resource membership* authorization. A `ResourceAuthority` decides
+# the caller's role on each document, a cosmetic `ResourceGate` shows/hides the
+# edit field, and `require_resource_leptos` is the real boundary on the mutation
+# server fn. Deliberately omits OAuth / MFA / mail / API tokens / rate limiting
+# so the membership story stands alone. For the everything-on tour see
+# ../leptos-fullstack-example.
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+leptos = { version = "0.8", default-features = false }
+leptos_router = { version = "0.8", default-features = false }
+leptos_meta = { version = "0.8", default-features = false }
+# The adapter, with only the UI components (for `ResourceGate` + `LoginPanel`).
+# No capability features — this example demonstrates one axis.
+arium-leptos = { path = "../../crates/arium-leptos", default-features = false, features = ["ui"] }
+anyhow = "1"
+
+# Server-only deps: the axum host + runtime + sqlx pool, the Leptos axum
+# integration (for `leptos_axum::extract` in the membership server fn), and
+# async-trait to implement `ResourceAuthority`.
+axum = { version = "0.8.4", optional = true }
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "net"], optional = true }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "macros",
+    "migrate",
+    "runtime-tokio",
+], optional = true }
+leptos_axum = { version = "0.8", optional = true }
+async-trait = { version = "0.1.88", optional = true }
+
+# Client/wasm hydration entrypoint deps.
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["ssr", "sqlite"]
+ssr = [
+    "dep:axum",
+    "dep:tokio",
+    "dep:sqlx",
+    "dep:leptos_axum",
+    "dep:async-trait",
+    "leptos/ssr",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "arium-leptos/ssr",
+]
+
+# Backend selection — enable exactly one, matching arium's compile-time choice.
+# Only the bin (`ssr`) build turns this on (see `bin-features` below), so the
+# non-weak `sqlx/sqlite` is fine — the hydrate build never sees it.
+sqlite = ["arium-leptos/sqlite", "sqlx/sqlite"]
+postgres = ["arium-leptos/postgres", "sqlx/postgres"]
+
+hydrate = [
+    "leptos/hydrate",
+    "arium-leptos/hydrate",
+    "dep:wasm-bindgen",
+    "dep:console_error_panic_hook",
+]
+
+[package.metadata.leptos]
+output-name = "leptos-authz-example"
+# Distinct from leptos-fullstack-example's `target/site` so the two examples'
+# build artifacts and dev ports don't collide.
+site-root = "target/site-authz"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3100"
+reload-port = 3101
+bin-features = ["ssr", "sqlite"]
+bin-default-features = false
+lib-features = ["hydrate"]
+lib-default-features = false
