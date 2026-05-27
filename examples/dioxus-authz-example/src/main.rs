@@ -16,8 +16,9 @@
 //!    button on view-only docs proves it — the request reaches the server and
 //!    is rejected there, gate or no gate.
 //!
-//! Run with `DX_AUTH_SKIP_EMAIL_VERIFICATION=1 dx serve` and register any
-//! account; every signed-in user gets the same demo roles below.
+//! Run with `dx serve` and register any account (signup logs you straight in —
+//! no `mail` feature, so no verification round-trip); every signed-in user gets
+//! the same demo roles below.
 
 use dioxus::prelude::*;
 
@@ -35,10 +36,10 @@ const APP_CSS: Asset = asset!("/assets/app.css");
 /// purely from its id, so one freshly-registered user can see every tier of the
 /// lattice at once.
 const DOCS: &[(i64, &str)] = &[
-    (1, "Team roadmap"),       // Owner  — full control
-    (2, "Design notes"),       // Editor — can edit
-    (3, "Company handbook"),   // Viewer — read-only
-    (4, "Q3 board minutes"),   // (none) — no relationship → denied
+    (1, "Team roadmap"),     // Owner  — full control
+    (2, "Design notes"),     // Editor — can edit
+    (3, "Company handbook"), // Viewer — read-only
+    (4, "Q3 board minutes"), // (none) — no relationship → denied
 ];
 
 fn main() {
@@ -58,7 +59,10 @@ fn main() {
             let connect_opts = match std::env::var("DATABASE_URL") {
                 Ok(url) if !url.trim().is_empty() => SqliteConnectOptions::from_str(&url)?,
                 _ => SqliteConnectOptions::new()
-                    .filename(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/authz.db"))
+                    .filename(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../target/authz.db"
+                    ))
                     .create_if_missing(true),
             };
             SqlitePoolOptions::new()
