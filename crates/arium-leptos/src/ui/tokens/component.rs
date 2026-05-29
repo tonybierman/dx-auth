@@ -20,7 +20,8 @@ pub fn ApiTokens(
     /// centering shell and flatten the card so it renders inline (e.g. inside a
     /// console pane). Defaults to `false` for standalone-route use. Mirrors the
     /// Dioxus `ApiTokens` `embedded` prop.
-    #[prop(default = false)] embedded: bool,
+    #[prop(default = false)]
+    embedded: bool,
 ) -> impl IntoView {
     // Empty classes collapse the centering shell to plain block wrappers; the
     // flatten modifier rides on the Card (Leptos's Card takes no `style`).

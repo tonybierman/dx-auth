@@ -9,6 +9,12 @@ repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
 
+[package.metadata.cargo-machete]
+# `tokio` is never referenced from this crate's source — it is enabled by the
+# `gate-*` features so the sqlx `runtime-tokio` surface links for consumers.
+# See the comment on `[features]` below.
+ignored = ["tokio"]
+
 [[bin]]
 name = "act"
 path = "src/main.rs"

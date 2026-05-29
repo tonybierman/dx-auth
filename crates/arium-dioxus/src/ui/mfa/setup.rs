@@ -50,8 +50,16 @@ pub fn MfaSetup(
     let mut busy = use_signal(|| false);
 
     // Empty classes collapse the centering shell to plain block wrappers.
-    let screen_class = if embedded { String::new() } else { Styles::dx_auth_screen.to_string() };
-    let card_class = if embedded { String::new() } else { Styles::dx_auth_card.to_string() };
+    let screen_class = if embedded {
+        String::new()
+    } else {
+        Styles::dx_auth_screen.to_string()
+    };
+    let card_class = if embedded {
+        String::new()
+    } else {
+        Styles::dx_auth_card.to_string()
+    };
     // Inline override beats `.dx-card` by specificity, so an embedded card
     // sits flat in its pane (no border/background/shadow) instead of as a
     // boxed panel — matching the inline `AccountSettings` look.

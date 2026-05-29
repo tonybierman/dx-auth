@@ -13,8 +13,7 @@ use leptos::task::spawn_local;
 // Full grid is Name / Description / Tokens / Kind; phone portrait drops
 // Tokens and Kind (see the portrait media query in style.css), so the
 // portrait template is 2 tracks.
-const ROLE_COLUMNS: &str =
-    "--data-cols: minmax(0, 1.5fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.75fr); \
+const ROLE_COLUMNS: &str = "--data-cols: minmax(0, 1.5fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.75fr); \
      --data-cols-portrait: minmax(0, 1.5fr) minmax(0, 2fr);";
 
 /// Role browser. Clicking a row fires `on_select(role_id)`; "New role" fires

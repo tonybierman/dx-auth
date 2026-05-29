@@ -14,8 +14,7 @@ const ADMIN_CSS: Asset = asset!("/src/ui/admin/style.css", AssetOptions::css_mod
 #[css_module("/src/ui/admin/style.css")]
 struct Styles;
 
-const AUDIT_COLUMNS: &str =
-    "--data-cols: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.25fr);";
+const AUDIT_COLUMNS: &str = "--data-cols: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.25fr);";
 
 /// Filterable, paginated audit-log table. Requires `admin:audit:read`
 /// on the signed-in user; the server fn enforces this and the table

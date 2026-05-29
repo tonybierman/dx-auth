@@ -13,8 +13,7 @@ use crate::wire::AdminRoleDetail;
 // Full grid is Name / Description / Tokens / Kind; phone portrait drops
 // Tokens and Kind (see the portrait media query in style.css), so the
 // portrait template is 2 tracks.
-const ROLE_COLUMNS: &str =
-    "--data-cols: minmax(0, 1.5fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.75fr); \
+const ROLE_COLUMNS: &str = "--data-cols: minmax(0, 1.5fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.75fr); \
      --data-cols-portrait: minmax(0, 1.5fr) minmax(0, 2fr);";
 
 const ADMIN_CSS: Asset = asset!("/src/ui/admin/style.css", AssetOptions::css_module());

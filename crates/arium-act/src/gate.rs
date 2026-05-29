@@ -176,12 +176,16 @@ pub async fn run(
         return Ok(Actor::Bootstrap);
     }
 
-    let identifier = args.user.as_deref().filter(|s| !s.is_empty()).ok_or_else(|| {
-        anyhow::anyhow!(
-            "-u/--user is required (or set ACT_USER) — run `act extensions` \
+    let identifier = args
+        .user
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "-u/--user is required (or set ACT_USER) — run `act extensions` \
              to list installed commands without auth"
-        )
-    })?;
+            )
+        })?;
 
     let password = resolve_password(args)?;
 
@@ -274,6 +278,6 @@ pub async fn has_any_admin(pool: &Pool) -> anyhow::Result<bool> {
         if (users.len() as i64) < chunk {
             return Ok(false);
         }
-        offset += chunk;
+        offset = offset.saturating_add(chunk);
     }
 }

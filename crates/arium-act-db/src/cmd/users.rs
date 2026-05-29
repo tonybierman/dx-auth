@@ -52,7 +52,10 @@ async fn list(pool: &Pool, limit: i64, offset: i64, fmt: Format) -> anyhow::Resu
             for u in &rows {
                 let email = u.email.as_deref().unwrap_or("-");
                 let verified = u.email_verified_at.is_some();
-                println!("{:>6}  {:<24}  {:<32}  {}", u.id, u.username, email, verified);
+                println!(
+                    "{:>6}  {:<24}  {:<32}  {}",
+                    u.id, u.username, email, verified
+                );
             }
         }
     }
@@ -73,7 +76,10 @@ async fn show(pool: &Pool, user_id: i64, fmt: Format) -> anyhow::Result<()> {
                 "display_name:      {}",
                 view.display_name.as_deref().unwrap_or("-")
             );
-            println!("email:             {}", view.email.as_deref().unwrap_or("-"));
+            println!(
+                "email:             {}",
+                view.email.as_deref().unwrap_or("-")
+            );
             println!(
                 "email_verified_at: {}",
                 view.email_verified_at
@@ -212,7 +218,11 @@ async fn roles(pool: &Pool, user_id: i64, fmt: Format) -> anyhow::Result<()> {
     let all = auth::list_roles(pool).await?;
     let mut rows: Vec<(i64, String)> = role_ids
         .into_iter()
-        .filter_map(|rid| all.iter().find(|r| r.id == rid).map(|r| (r.id, r.name.clone())))
+        .filter_map(|rid| {
+            all.iter()
+                .find(|r| r.id == rid)
+                .map(|r| (r.id, r.name.clone()))
+        })
         .collect();
     rows.sort_by_key(|r| r.0);
 

@@ -225,11 +225,21 @@ fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<()> {
-    let fmt = if cli.json { Format::Json } else { Format::Human };
+    let fmt = if cli.json {
+        Format::Json
+    } else {
+        Format::Human
+    };
     let url = cli.auth.resolve_database_url()?;
     let pool = gate::build_pool(&url).await?;
 
-    let actor = gate::run(&cli.auth, &pool, cli.cmd.allows_bootstrap(), cli.cmd.label()).await?;
+    let actor = gate::run(
+        &cli.auth,
+        &pool,
+        cli.cmd.allows_bootstrap(),
+        cli.cmd.label(),
+    )
+    .await?;
     let actor_id = actor.user_id();
 
     match cli.cmd {

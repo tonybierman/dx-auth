@@ -8,8 +8,7 @@ use crate::ui::components::virtual_list::VirtualList;
 use crate::wire::{AuditEventView, AuditQuery};
 use leptos::prelude::*;
 
-const AUDIT_COLUMNS: &str =
-    "--data-cols: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.25fr);";
+const AUDIT_COLUMNS: &str = "--data-cols: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.25fr);";
 
 /// Filterable, paginated audit-log table. Requires `admin:audit:read`; the
 /// server fn enforces it and the table renders an error if the caller isn't

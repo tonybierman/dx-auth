@@ -43,7 +43,9 @@ pub fn discover(tool: &str) -> Vec<Extension> {
             let Some(name) = file_name.to_str() else {
                 continue;
             };
-            let stem = name.strip_suffix(std::env::consts::EXE_SUFFIX).unwrap_or(name);
+            let stem = name
+                .strip_suffix(std::env::consts::EXE_SUFFIX)
+                .unwrap_or(name);
             let Some(sub) = stem.strip_prefix(&prefix) else {
                 continue;
             };

@@ -70,7 +70,10 @@ async fn create(
                 "WARNING: this token is shown ONCE. Save it now; the DB only stores its hash."
             );
             println!("{cleartext}");
-            eprintln!("(id={}, name={}, prefix={})", view.id, view.name, view.prefix);
+            eprintln!(
+                "(id={}, name={}, prefix={})",
+                view.id, view.name, view.prefix
+            );
         }
     }
     Ok(())
