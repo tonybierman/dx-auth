@@ -146,7 +146,7 @@ async fn resolve_user_id<S: Send + Sync>(
             .current_user
             .as_ref()
             .filter(|u| !u.anonymous)
-            .map(|u| u.id as i64),
+            .map(|u| u.id),
         Err(_) => None,
     }
 }

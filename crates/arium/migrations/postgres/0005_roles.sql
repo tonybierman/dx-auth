@@ -1,7 +1,7 @@
 -- Postgres mirror of 0005_roles.
 
 CREATE TABLE IF NOT EXISTS roles (
-    id          BIGINT PRIMARY KEY,
+    id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(64) NOT NULL UNIQUE,
     description TEXT,
     is_system   BOOLEAN NOT NULL DEFAULT false
@@ -38,6 +38,11 @@ ON CONFLICT (role_id, token) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id) VALUES (1, 3)
 ON CONFLICT (user_id, role_id) DO NOTHING;
+
+-- Same sequence-bump rationale as 0001_init.sql's users seed: roles ids 1..3
+-- are explicit, so advance the BIGSERIAL sequence past them.
+SELECT setval(pg_get_serial_sequence('roles', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 0) FROM roles), 1));
 
 CREATE INDEX IF NOT EXISTS ix_users_deleted_at  ON users(deleted_at);
 CREATE INDEX IF NOT EXISTS ix_user_roles_role_id ON user_roles(role_id);

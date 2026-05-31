@@ -108,7 +108,7 @@
 //!
 //! This API takes `user_id: i64` throughout. If your user table's id is a
 //! narrower integer (arium's own `users.id` is `i32`), cast at the call site
-//! (`user.id as i64`); ids only widen, so the conversion is lossless.
+//! (`user.id`); ids only widen, so the conversion is lossless.
 
 use crate::pool::Pool;
 use crate::wire::ResourceRole;

@@ -23,7 +23,7 @@ pub type AuthLayer = axum_session_auth::AuthSessionLayer<User, i64, SessionPool,
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     /// Database row id (matches `users.id`).
-    pub id: i32,
+    pub id: i64,
     /// `true` for the built-in Guest user.
     pub anonymous: bool,
     /// Unique, stable `@handle`: the provider login for OAuth accounts, the
@@ -57,7 +57,7 @@ impl Authentication<User, i64, Pool> for User {
 
         #[derive(sqlx::FromRow, Clone)]
         struct SqlUser {
-            id: i32,
+            id: i64,
             anonymous: bool,
             username: String,
             display_name: Option<String>,
