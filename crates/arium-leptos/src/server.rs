@@ -92,7 +92,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
     let actor = auth
         .current_user
         .as_ref()
-        .and_then(|u| if u.anonymous { None } else { Some(u.id as i64) });
+        .and_then(|u| if u.anonymous { None } else { Some(u.id) });
     auth.logout_user();
     if let Some(id) = actor {
         audit
@@ -119,7 +119,7 @@ pub async fn get_current_user_profile() -> Result<UserProfile, ServerFnError> {
     let permissions = if user.anonymous {
         Vec::new()
     } else {
-        auth::list_permissions_for_user(&db.0, user.id as i64)
+        auth::list_permissions_for_user(&db.0, user.id)
             .await
             .map_err(sfn)?
     };
@@ -161,7 +161,7 @@ pub async fn get_resource_role(
         .0
         .role_on(
             &db.0,
-            user.id as i64,
+            user.id,
             arium::authz::ResourceRef::new(&kind, id),
         )
         .await
@@ -579,7 +579,7 @@ pub async fn begin_mfa_setup() -> Result<MfaSetupView, ServerFnError> {
 
     let label = user.email.clone().unwrap_or_else(|| user.username.clone());
 
-    let info = auth::setup_mfa_secret(&db.0, user.id as i64, &label)
+    let info = auth::setup_mfa_secret(&db.0, user.id, &label)
         .await
         .map_err(sfn)?;
     Ok(MfaSetupView {
@@ -604,7 +604,7 @@ pub async fn confirm_mfa_setup(code: String) -> Result<(), ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let user_id = user.id as i64;
+    let user_id = user.id;
     if auth::enable_mfa(&db.0, user_id, &code).await.map_err(sfn)? {
         audit
             .record(
@@ -636,7 +636,7 @@ pub async fn disable_mfa_for_user() -> Result<(), ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let user_id = user.id as i64;
+    let user_id = user.id;
     auth::disable_mfa(&db.0, user_id).await.map_err(sfn)?;
     audit
         .record(
@@ -666,7 +666,7 @@ pub async fn get_mfa_status() -> Result<MfaStatusView, ServerFnError> {
         return Ok(MfaStatusView::Disabled);
     }
     Ok(
-        match auth::mfa_status(&db.0, user.id as i64).await.map_err(sfn)? {
+        match auth::mfa_status(&db.0, user.id).await.map_err(sfn)? {
             auth::MfaStatus::Disabled => MfaStatusView::Disabled,
             auth::MfaStatus::Pending => MfaStatusView::Pending,
             auth::MfaStatus::Enabled => MfaStatusView::Enabled,
@@ -695,7 +695,7 @@ pub async fn create_api_token(name: String) -> Result<CreateApiTokenResponse, Se
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let user_id = user.id as i64;
+    let user_id = user.id;
 
     let (token, view) = auth::tokens::create_for_user(&db.0, user_id, &name)
         .await
@@ -733,7 +733,7 @@ pub async fn list_api_tokens() -> Result<Vec<ApiTokenView>, ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    auth::tokens::list_for_user(&db.0, user.id as i64)
+    auth::tokens::list_for_user(&db.0, user.id)
         .await
         .map_err(sfn)
 }
@@ -754,7 +754,7 @@ pub async fn revoke_api_token(token_id: i64) -> Result<(), ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let user_id = user.id as i64;
+    let user_id = user.id;
 
     let revoked = auth::tokens::revoke_for_user(&db.0, user_id, token_id)
         .await
@@ -804,7 +804,7 @@ async fn require_admin_perm(
         .requires(Rights::permission(perm.to_string()))
         .validate(user, &axum::http::Method::GET, Some(db))
         .await
-        .then_some(user.id as i64)
+        .then_some(user.id)
         .ok_or_else(|| ServerFnError::new("You don't have permission for this action."))
 }
 
@@ -845,7 +845,7 @@ pub async fn require_resource_leptos(
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let user_id = user.id as i64;
+    let user_id = user.id;
     match arium::authz::require_resource(
         authority.0.as_ref(),
         db,
@@ -1165,7 +1165,7 @@ pub async fn get_account_view() -> Result<AccountView, ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let id = user.id as i64;
+    let id = user.id;
 
     // We still need a couple of bits that aren't on the cached `User`:
     // whether a password is set, whether MFA is enabled, and which OAuth
@@ -1206,7 +1206,7 @@ pub async fn update_display_name(new_name: String) -> Result<(), ServerFnError> 
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let id = user.id as i64;
+    let id = user.id;
     let trimmed = new_name.trim();
     let value = if trimmed.is_empty() {
         None
@@ -1243,7 +1243,7 @@ pub async fn change_password(current: String, new_password: String) -> Result<()
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let id = user.id as i64;
+    let id = user.id;
     let Some(stored) = auth::get_password_hash(&db.0, id).await.map_err(sfn)? else {
         return Err(ServerFnError::new("This account doesn't use a password."));
     };
@@ -1279,7 +1279,7 @@ pub async fn delete_my_account() -> Result<(), ServerFnError> {
     if user.anonymous {
         return Err(ServerFnError::new("Not signed in."));
     }
-    let id = user.id as i64;
+    let id = user.id;
     auth::soft_delete_user(&db.0, id).await.map_err(sfn)?;
     // Record BEFORE logging out so the auth-session still has the user.
     audit
