@@ -24,7 +24,7 @@ axum = "0.8.4"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.8.6", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
   "sqlite",
   "runtime-tokio",
 ] }

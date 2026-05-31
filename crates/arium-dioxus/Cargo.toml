@@ -65,8 +65,8 @@ dioxus-primitives = { git = "https://github.com/DioxusLabs/components", rev = "8
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 arium = { workspace = true, optional = true }
 axum = { version = "0.8.4", default-features = false, features = ["macros"], optional = true }
-sqlx = { version = "0.8.6", default-features = false, features = ["macros", "runtime-tokio"], optional = true }
-axum_session_auth = { version = "0.16.0", optional = true }
+sqlx = { version = "0.9.0", default-features = false, features = ["macros", "runtime-tokio"], optional = true }
+axum_session_auth = { version = "0.20.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { version = "0.4", features = ["futures"], default-features = false }
@@ -87,7 +87,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 dioxus = { version = "0.7.9", features = ["fullstack", "router", "server"] }
 axum = { version = "0.8.4", default-features = false }
-sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "macros"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["sqlite", "runtime-tokio", "macros"] }
 reqwest = { version = "0.12", default-features = false, features = ["cookies", "json"] }
 
 # Wasm client-surface logic test (tests/wasm_client.rs): runs in Node via
