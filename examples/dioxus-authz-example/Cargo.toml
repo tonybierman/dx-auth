@@ -26,7 +26,7 @@ arium-dioxus = { path = "../../crates/arium-dioxus", default-features = false, f
 # `Extension` extractor type for the membership server fn, and async-trait to
 # implement `ResourceAuthority`.
 axum = { version = "0.8.4", default-features = false, optional = true, features = ["macros"] }
-sqlx = { version = "0.8.6", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
     "macros",
     "migrate",
     "runtime-tokio",

@@ -27,7 +27,7 @@ axum = { version = "0.8.4", optional = true }
 tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "net"], optional = true }
 # The sqlx driver (`sqlite`/`postgres`) is added by the matching backend feature
 # below, not pinned here — it must track arium's compile-time backend choice.
-sqlx = { version = "0.8.6", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
     "macros",
     "migrate",
     "_unstable-all-types",

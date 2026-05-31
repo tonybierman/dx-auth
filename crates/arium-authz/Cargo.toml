@@ -35,13 +35,13 @@ async-trait = "0.1.88"
 anyhow = "1.0.98"
 serde = { version = "1.0.225", features = ["derive"] }
 # Only the lifecycle layer touches sqlx (TxExec wraps sqlx::Transaction).
-sqlx = { version = "0.8.6", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
     "runtime-tokio",
 ], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
-sqlx = { version = "0.8.6", default-features = false, features = [
+sqlx = { version = "0.9.0", default-features = false, features = [
     "runtime-tokio",
     "sqlite",
     "macros",
